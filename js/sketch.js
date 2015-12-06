@@ -10,7 +10,7 @@ var nodes = [];
 var edges = [];
 var agents = [];
 
-var numAgents = 20;
+var numAgents = 12;
 var modo = 5;
 var maxStress = 0.8;
 
