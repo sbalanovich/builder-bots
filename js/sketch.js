@@ -1,18 +1,17 @@
 /* TO DO
-	- PSET 0
 	- function for destroying truss, start over
 	- boundaries
-	- game instructions
 	- high scores
 */
 
 var nodes = [];
 var edges = [];
 var agents = [];
+var agentSprites;
 
 var numAgents = 12;
 var modo = 5;
-var maxStress = 0.8;
+var maxStress = 0.5;
 
 var width = window.innerWidth;
 var height = window.innerHeight;
@@ -36,23 +35,23 @@ var pointB = [(width/2) + span, (height/2) - span];
 // used for icons, background imagery
 function preload(){
   	loadImage("assets/background.png",
-        function (pic) { print(backgroundImg = pic), redraw(); },
+        function (pic) { print(backgroundImg = pic)/* redraw();*/ },
         loadImageErrorOverride);
   	rightImg = loadImage("assets/right.png",
-        function (pic) { print(rightImg = pic), redraw(); },
+        function (pic) { print(rightImg = pic) /*redraw();*/ },
         loadImageErrorOverride);
   	leftImg = loadImage("assets/left.png",
-        function (pic) { print(leftImg = pic), redraw(); },
+        function (pic) { print(leftImg = pic) /*redraw();*/ },
         loadImageErrorOverride);
 
 	bot0Img = loadImage("assets/bot0.png",
-    	function (pic) { /*print(bot0Img = pic),*/ redraw(); },
+    	function (pic) { /*print(bot0Img = pic),*/ /*redraw(); */},
     	loadImageErrorOverride);
 	bot1Img = loadImage("assets/bot1.png",
-        function (pic) { /*print(bot1Img = pic),*/ redraw(); },
+        function (pic) { /*print(bot1Img = pic),*/ /*redraw();*/ },
         loadImageErrorOverride);
 	bot2Img = loadImage("assets/bot2.png",
-        function (pic) { /*print(bot2Img = pic),*/ redraw(); },
+        function (pic) { /*print(bot2Img = pic),*/ /*redraw();*/ },
         loadImageErrorOverride);
 }
 
@@ -61,9 +60,6 @@ function setup() {
 	createCanvas(windowWidth, windowHeight);
 	frameRate(30);
 
-	tr = new Truss();
-    tr.initiate();
-
     updateSprites(false);
 }
 
@@ -71,11 +67,33 @@ function setup() {
 function draw() {
 
 	if (startup) {
+		noLoop();
 		background(0);
-		fill(255);
+		fill(100);
+		inputAgents = createInput();
+  		inputAgents.position(width/2 - 290, 150);
+  		inputSpeed = createInput();
+  		inputSpeed.position(width/2 - 90, 150);
+  		inputStress = createInput();
+  		inputStress.position(width/2 + 110, 150);
+
+  		color(100);
+		rect(width/2 - 40, height/2 -20, 80, 40);
+
+  		fill(255);
 	    textAlign(CENTER);
 	    textSize(16);
-	    text("instructions", width/2, height/2);
+	    text("BEGIN", width/2, height/2+5);
+
+	    text("Number of bots:", width/2 - 235, 140);
+	    text("Allowable force (0-1): ", width/2 - 10, 140);
+	    text("Speed (1-10): ", width/2 + 162, 140);
+
+	    text("Instructions:", width/2, height/2 + 50);
+  		text("Set parameters and click begin. You will then see a swarm of builder bots begin", width/2, height/2 + 80); 
+  		text("to emerge from the start point. The objective of the game is to get to the target point", width/2, height/2 + 110); 
+  		text("before your structure collapses.", width/2, height/2 + 140);
+		
 	}
 	else if (gameWon){
 		background(0);
@@ -145,29 +163,68 @@ function draw() {
 }
 
 function mousePressed() {
-	if (startup) startup = false;
+	if (startup) {
+		if (mouseX > width/2 - 40 && mouseX < width/2 + 40 && mouseY > height/2 - 20 && mouseY < height/2 + 20){ 
+			startup = false;
+			numAgents = parseInt(inputAgents.value());
+			inputAgents.value('');
+			inputAgents.remove();
+			maxStress = parseFloat(inputStress.value());
+			inputStress.value('');
+			inputStress.remove();
+			modo = 15 - parseInt(inputSpeed.value());
+			inputSpeed.value('');
+			inputSpeed.remove();
+			
+			// set default values if none provided
+			if (isNaN(numAgents)) numAgents = 8;
+			if (isNaN(maxStress)) maxStress = 0.2;
+			if (isNaN(modo)) modo = 5;
 
+			// create and initiate a new truss object 
+			tr = new Truss();
+    		tr.initiate();
+			loop();
+		}
+	}
+	else if (gameWon){
+		gameWon = false;
+		startup = true;
+		for (var i = 0, length = agents.length; i < length; i++) {
+			agents[i].bot.remove();
+		}
+		edges = [];
+		nodes = [];
+		agents = [];
+	}
+	else if (gameLost){
+		gameLost = false;
+		startup = true;
+		for (var i = 0, length = agents.length; i < length; i++) {
+			agents[i].bot.remove();
+		}
+		edges = [];
+		nodes = [];
+		agents = [];
+	}
+	else{
+		// check for clicks on the buttons to change behavior
+		for (var i = 0, length = agents.length; i < length; i++) {
+			var dist = Math.sqrt((agents[i].currentNode.x - mouseX)*(agents[i].currentNode.x - mouseX) + (agents[i].currentNode.y - mouseY)*(agents[i].currentNode.y - mouseY));
 
-
-	for (var i = 0, length = agents.length; i < length; i++) {
-		var dist = Math.sqrt((agents[i].currentNode.x - mouseX)*(agents[i].currentNode.x - mouseX) + (agents[i].currentNode.y - mouseY)*(agents[i].currentNode.y - mouseY));
-
-		if (dist < sl){
-			agents[i].PreviousBehavior = agents[i].CurrentBehavior;
-			agents[i].CurrentBehavior = agents[i].behaviors[CB];
-			//console.log("changed to " + CB);
+			if (dist < sl){
+				agents[i].PreviousBehavior = agents[i].CurrentBehavior;
+				agents[i].CurrentBehavior = agents[i].behaviors[CB];
+			}		
 		}
 
-			
+		// manually checking for "click" events on the buttons. i wasn't able to get any
+		// pre-made button functions to work.
+		if (mouseX > 15 && mouseX < 85 && mouseY > 20 && mouseY < 40){ CB = 0;}
+		if (mouseX > 110 && mouseX < 180 && mouseY > 20 && mouseY < 40){ CB = 1;}
+		if (mouseX > 220 && mouseX < 280 && mouseY > 20 && mouseY < 40){ CB = 2;}
 	}
-
-	// manually checking for "click" events on the buttons. i wasn't able to get any
-	// pre-made button functions to work.
-	if (mouseX > 15 && mouseX < 85 && mouseY > 20 && mouseY < 40){ CB = 0;}
-	if (mouseX > 110 && mouseX < 180 && mouseY > 20 && mouseY < 40){ CB = 1;}
-	if (mouseX > 220 && mouseX < 280 && mouseY > 20 && mouseY < 40){ CB = 2;}
-
-	return false;
+	//return false;
 }
 
 
@@ -278,7 +335,7 @@ function Agent(tr, n){
     this.bot.addImage("bot0", bot0Img);
     this.bot.addImage("bot1", bot1Img);
     this.bot.addImage("bot2", bot2Img);
-
+    
     this.behaviors = [];
     this.behaviors.push(new Directional());
     this.behaviors.push(new WalkDown());
@@ -374,22 +431,12 @@ function Truss() {
 			if (edges[i].stress > maxStress){
 				console.log("stressed");
 				gameLost = true;
-
-				//this.removeEdge(i);
 			}				
 		}
 
 		for (var i = 0, length = nodes.length; i < length; i++) {
-			nodes[i].move(dt, damping);	
-			//console.log(nodes[i].fx + ", " + nodes[i].fy);
-			
+			nodes[i].move(dt, damping);			
 		}
-
-		for (var i = 0, length = agents.length; i < length; i++) {
-			
-		}
-
-
     }   
 
     // Add and remove elements on the truss object
