@@ -427,12 +427,15 @@ function Truss() {
 			
 		}
 
+		var stressed = 0;
 		for (var i = 0;  i < edges.length; i++) {
 			if (edges[i].stress > maxStress){
-				console.log("stressed");
-				gameLost = true;
+				console.log(stressed);
+				stressed++;
 			}				
 		}
+
+		if(stressed > 3)  gameLost = true;
 
 		for (var i = 0, length = nodes.length; i < length; i++) {
 			nodes[i].move(dt, damping);			
@@ -675,7 +678,7 @@ Directional.prototype.step = function ( a, tr){
 
 		// if nextNode is closer to target, increase probability
 		if (newDist < preDist){
-			weights[i] = weights[i] * 10;
+			weights[i] = weights[i] * 20;
 		}
 	}
 
@@ -767,7 +770,7 @@ WalkDown.prototype.step = function ( a, tr){
 
 		// if nextNode is closer to target, double probability
 		if (newDist < preDist){
-			weights[i] = weights[i] * 10;
+			weights[i] = weights[i] * 20;
 		}
 	}
 
@@ -823,7 +826,7 @@ Reinforce.prototype.step = function ( a, tr){
 	a.previousNode = a.currentNode;
 	var n = a.currentNode;
 
-	var weights =  [20, 20, 20, 20, 20, 20];
+	var weights =  [20, 20, 20, 20, 10, 10];
 
 	// TRY TO BUILD
 	for(var i = 0; i < 6; i++) {
