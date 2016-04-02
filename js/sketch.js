@@ -1,7 +1,5 @@
 /* TO DO
-	- function for destroying truss, start over
-	- boundaries
-	- high scores
+
 */
 
 var nodes = [];
@@ -20,11 +18,11 @@ var sl = Math.min(width,height) / 15;
 var span = sl*5;
 var startup = true, gameWon = false, gameLost = false;
 
-var background, right, left;
-var bot0, bot1, bot2;
+//var background, right, left;
+var bot0, bot1, bot2, bot3;
 
-var backgroundImg, rightImg, leftImg, bot0Img, bot1Img, bot2Img;
-var button0, button1, button2;
+var bot0Img, bot1Img, bot2Img, bot3Img;
+//var button0, button1, button2;
 var CB = 0;
 
 var ground = (height/2) + span;
@@ -34,15 +32,6 @@ var pointB = [(width/2) + span, (height/2) - span];
 // the preload function is prioritized by the p5 library, used for loading images
 // used for icons, background imagery
 function preload(){
-  	loadImage("assets/background.png",
-        function (pic) { print(backgroundImg = pic)/* redraw();*/ },
-        loadImageErrorOverride);
-  	rightImg = loadImage("assets/right.png",
-        function (pic) { print(rightImg = pic) /*redraw();*/ },
-        loadImageErrorOverride);
-  	leftImg = loadImage("assets/left.png",
-        function (pic) { print(leftImg = pic) /*redraw();*/ },
-        loadImageErrorOverride);
 
 	bot0Img = loadImage("assets/bot0.png",
     	function (pic) { /*print(bot0Img = pic),*/ /*redraw(); */},
@@ -52,6 +41,9 @@ function preload(){
         loadImageErrorOverride);
 	bot2Img = loadImage("assets/bot2.png",
         function (pic) { /*print(bot2Img = pic),*/ /*redraw();*/ },
+        loadImageErrorOverride);
+	bot3Img = loadImage("assets/bot3.png",
+        function (pic) { /*print(bot3Img = pic),*/ /*redraw();*/ },
         loadImageErrorOverride);
 }
 
@@ -66,165 +58,56 @@ function setup() {
 
 function draw() {
 
-	if (startup) {
-		noLoop();
-		background(0);
-		fill(100);
-		inputAgents = createInput();
-  		inputAgents.position(width/2 - 290, 150);
-  		inputSpeed = createInput();
-  		inputSpeed.position(width/2 - 90, 150);
-  		inputStress = createInput();
-  		inputStress.position(width/2 + 110, 150);
 
-  		color(100);
-		rect(width/2 - 40, height/2 -20, 80, 40);
+	background(100);
 
-  		fill(255);
-	    textAlign(CENTER);
-	    textSize(16);
-	    text("BEGIN", width/2, height/2+5);
+	var timeout = 30000; 
+	
+	if (frameCount % modo == 0 && frameCount < timeout) {
+		tr.step();
+		//console.log("step");
+	} 
 
-	    text("Number of bots:", width/2 - 235, 140);
-	    text("Allowable force (0-1): ", width/2 - 10, 140);
-	    text("Speed (1-10): ", width/2 + 162, 140);
-
-	    text("Instructions:", width/2, height/2 + 50);
-  		text("Set parameters and click begin. You will then see a swarm of builder bots begin", width/2, height/2 + 80); 
-  		text("to emerge from the start point. The objective of the game is to get to the target point", width/2, height/2 + 110); 
-  		text("before your structure collapses.", width/2, height/2 + 140);
-		
+	if (frameCount < timeout){
+		tr.move();
 	}
-	else if (gameWon){
-		background(0);
-		fill(255);
-	    textAlign(CENTER);
-	    textSize(16);
-	    text("YOU WIN!", width/2, height/2);
+
+	// render the edges, nodes and agents, in order of render depth
+	for (var i = 0, length = edges.length; i < length; i++) {
+		edges[i].render();		
 	}
-	else if (gameLost){
-		background(0);
-		fill(255);
-	    textAlign(CENTER);
-	    textSize(16);
-	    text("YOU LOSE!", width/2, height/2);
+
+	for (var i = 0, length = nodes.length; i < length; i++) {
+		nodes[i].render();		
 	}
-	else{
-		background(backgroundImg);
-		image(leftImg, pointA[0]-span-sl*3, pointA[1]-sl*2);
-		image(rightImg, pointB[0]-sl*5, pointB[1]-sl*3);
 
-		var stop = 30000; 
-		
-		if (frameCount % modo == 0 && frameCount < stop) {
-			tr.step();
-			//console.log("step");
-		} 
-
-		if (frameCount < stop){
-			tr.move();
-		}
-
-		// render the edges, nodes and agents, in order of render depth
-		for (var i = 0, length = edges.length; i < length; i++) {
-			edges[i].render();		
-		}
-
-		for (var i = 0, length = nodes.length; i < length; i++) {
-			nodes[i].render();		
-		}
-
-		for (var i = 0, length = agents.length; i < length; i++) {
-			agents[i].render();		
-		}
-
-		ellipse(pointA[0], pointA[1], 10, 10);
-		ellipse(pointB[0], pointB[1], 10, 10);
-
-		fill('rgba(100%,100%,100%,0.2)');
-		strokeWeight(1);
-		ellipse(mouseX, mouseY, 40, 40);
-
-		color(0);
-		rect(15, 20, 60, 20);
-		rect(110, 20, 70, 20);
-		rect(220, 20, 60, 20);
-
-		textAlign(CENTER, TOP);
-		text("BUILD", 45, 25);
-		text("RETURN", 145, 25);
-		text("INFILL", 250, 25);
-
-		// draw the sprite objects last, so they're on top of edges and nodes
-		drawSprites();
+	for (var i = 0, length = agents.length; i < length; i++) {
+		agents[i].render();		
 	}
+
+	ellipse(pointA[0], pointA[1], 10, 10);
+	ellipse(pointB[0], pointB[1], 10, 10);
+
+	// draw the sprite objects last, so they're on top of edges and nodes
+	drawSprites();
 
 
 }
 
 function mousePressed() {
-	if (startup) {
-		if (mouseX > width/2 - 40 && mouseX < width/2 + 40 && mouseY > height/2 - 20 && mouseY < height/2 + 20){ 
-			startup = false;
-			numAgents = parseInt(inputAgents.value());
-			inputAgents.value('');
-			inputAgents.remove();
-			maxStress = parseFloat(inputStress.value());
-			inputStress.value('');
-			inputStress.remove();
-			modo = 15 - parseInt(inputSpeed.value());
-			inputSpeed.value('');
-			inputSpeed.remove();
-			
-			// set default values if none provided
-			if (isNaN(numAgents)) numAgents = 8;
-			if (isNaN(maxStress)) maxStress = 0.2;
-			if (isNaN(modo)) modo = 5;
-
-			// create and initiate a new truss object 
-			tr = new Truss();
-    		tr.initiate();
-			loop();
-		}
-	}
-	else if (gameWon){
-		gameWon = false;
-		startup = true;
+		
+		// clear any existing truss 
 		for (var i = 0, length = agents.length; i < length; i++) {
 			agents[i].bot.remove();
 		}
 		edges = [];
 		nodes = [];
 		agents = [];
-	}
-	else if (gameLost){
-		gameLost = false;
-		startup = true;
-		for (var i = 0, length = agents.length; i < length; i++) {
-			agents[i].bot.remove();
-		}
-		edges = [];
-		nodes = [];
-		agents = [];
-	}
-	else{
-		// check for clicks on the buttons to change behavior
-		for (var i = 0, length = agents.length; i < length; i++) {
-			var dist = Math.sqrt((agents[i].currentNode.x - mouseX)*(agents[i].currentNode.x - mouseX) + (agents[i].currentNode.y - mouseY)*(agents[i].currentNode.y - mouseY));
 
-			if (dist < sl){
-				agents[i].PreviousBehavior = agents[i].CurrentBehavior;
-				agents[i].CurrentBehavior = agents[i].behaviors[CB];
-			}		
-		}
-
-		// manually checking for "click" events on the buttons. i wasn't able to get any
-		// pre-made button functions to work.
-		if (mouseX > 15 && mouseX < 85 && mouseY > 20 && mouseY < 40){ CB = 0;}
-		if (mouseX > 110 && mouseX < 180 && mouseY > 20 && mouseY < 40){ CB = 1;}
-		if (mouseX > 220 && mouseX < 280 && mouseY > 20 && mouseY < 40){ CB = 2;}
-	}
-	//return false;
+		// create and initiate a new truss object 
+		tr = new Truss();
+		tr.initiate();
+		loop();
 }
 
 
@@ -335,14 +218,22 @@ function Agent(tr, n){
     this.bot.addImage("bot0", bot0Img);
     this.bot.addImage("bot1", bot1Img);
     this.bot.addImage("bot2", bot2Img);
+    this.bot.addImage("bot3", bot3Img);
     
     this.behaviors = [];
     this.behaviors.push(new Directional());
     this.behaviors.push(new WalkDown());
     this.behaviors.push(new Reinforce());
+    this.behaviors.push(new Traverse());
 
+    // for now, randomly initiate bots as either Directional or Reinforce builders
     this.CurrentBehavior = this.behaviors[0];
     this.PreviousBehavior = this.behaviors[0];
+
+    if (Math.random() > 0.5){
+    	this.CurrentBehavior = this.behaviors[2];
+	    this.PreviousBehavior = this.behaviors[2];
+    }
 
     this.currentNode = n;
     this.previousNode = n;
@@ -357,6 +248,9 @@ function Agent(tr, n){
     	}
     	if (this.CurrentBehavior.name == "Reinforce"){
     		this.bot.changeImage("bot2");
+    	}
+    	if (this.CurrentBehavior.name == "Traverse"){
+    		this.bot.changeImage("bot3");
     	}
         this.CurrentBehavior.step(this, tr);
         this.rot = Math.atan2(this.currentNode.y - this.previousNode.y, this.currentNode.x - this.previousNode.x) * 180 / Math.PI + 90;
@@ -396,6 +290,11 @@ function Truss() {
 
     this.initiate = function () {
     	//console.log(pointA);
+    	nodeId = 0;
+    	nodes = [];
+    	edges = [];
+    	agents = [];
+
         var n = new Node(nodeId, pointA[0], pointA[1]);
         nodes.push(n);
         nodeId++;
@@ -917,6 +816,96 @@ Reinforce.prototype.step = function ( a, tr){
 //}
 }
 
+
+// ████████╗██████╗  █████╗ ██╗   ██╗███████╗██████╗ ███████╗███████╗
+// ╚══██╔══╝██╔══██╗██╔══██╗██║   ██║██╔════╝██╔══██╗██╔════╝██╔════╝
+//    ██║   ██████╔╝███████║██║   ██║█████╗  ██████╔╝███████╗█████╗  
+//    ██║   ██╔══██╗██╔══██║╚██╗ ██╔╝██╔══╝  ██╔══██╗╚════██║██╔══╝  
+//    ██║   ██║  ██║██║  ██║ ╚████╔╝ ███████╗██║  ██║███████║███████╗                                                                                  
+
+function Traverse (a, tr){
+	Behavior.call(this, a, tr);
+	this.name = "Traverse";
+}
+
+// Define the prototype as inherited from Behavior
+Traverse.prototype = Object.create(Behavior.prototype);
+// Set the "constructor" property to refer to Behavior
+Traverse.prototype.constructor = Behavior;
+
+Traverse.prototype.step = function ( a, tr){
+
+	Behavior.prototype.step.call(this);
+	// find the node that the agent is sitting on
+	a.previousNode = a.currentNode;
+	var n = a.currentNode;
+
+	var StoreWeights = [20, 20, 20, 20, 10, 10];
+	var weights =  [20, 20, 20, 20, 10, 10];
+
+	// TRY TO MOVE
+	for(var i = 0; i < 6; i++) {
+		if(weights[i] == 0) continue;
+
+		// if the node doesn't have that edge, the probability is 0
+		if(!n.e[i]){
+			weights[i] = 0;
+			continue;
+		}
+
+		// if the edge is under too much stress, the probability is 0
+		var ee = n.e[i];
+
+		// if the node is occupied, the probability is 0
+		var N0 = ee.n0;
+		var N1 = ee.n1;
+
+		var nextNode = N0;
+		if (nextNode.id == n.id) nextNode = N1;
+
+		if (nextNode.isOccupied){
+			weights[i] = 0;
+			continue;
+		}
+	}
+
+	// if there is only one move choice, switch to build instead
+	var choices = 0;
+	for(var i = 0; i < 6; i++) {
+		if (weights[i] != 0) choices++;
+	}
+	if (choices < 2){
+		for(var i = 0; i < 6; i++) {
+			weights[i] = 0;
+		}
+	}
+
+	var strutIndex = this.getRandom(weights);
+
+	if (strutIndex < 6){
+		var ee = n.e[strutIndex];
+
+		if (ee != null){
+			var N0 = ee.n0;
+			var N1 = ee.n1;
+
+			var nextNode = N0;
+			if (nextNode.id == n.id) nextNode = N1;
+
+			a.previousNode = a.currentNode;
+			a.currentNode = nextNode;
+			nextNode.isOccupied = true;
+			n.isOccupied = false;
+			return true;
+		}
+		else{
+			console.log("fail");
+		}
+	}
+
+	return false;
+//}
+}
 
 
 // this function is a workaround provided by user "GoToLoop" on the Processing forum
