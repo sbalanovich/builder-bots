@@ -963,21 +963,24 @@ function Adjacency() {
 		c b
 
 		We have a 31x31 node graph (I think)
-		We define an adjacency matrix adj such that adj[x][y] represents the 
-		edge where edge.n0 = x and edge.n1 = y
+		We define an adjacency matrix adj such that adj[n0][n1] represents the 
+		edge where edge.n0 = n0 and edge.n1 = n1
 		*/ 
 		this.max = 0;
+		this.adj = [[0 for i in range(this.w+1)] for j in range(this.h+1)];
 		for edge in this.edges:
-			x = edge.n0;
-			y = edge.n1;
+			n0 = edge.n0;
+			n0_id = int(x.x/sl) + int(x.y/sl)*this.w;
+			n1 = edge.n1;
+			n1_id = int(y.x/sl) + int(y.y/sl)*this.w;
 			edge.updateStress();
-			this.adj[int(x.x/sl)][int(y.y/sl)] = edge.stress;
+			this.adj[n0_id][n1_id] = edge.stress;
 			if edge.stress > this.max:
 				this.max = edge.stress;
 	}
 
 	this.avgStress = function () {
-		sum(this.adj)/(len(adj)*len(adj[0]));
+		sum(this.adj)/(len(this.edges));
 	}
 
 	this.maxStress = function () {
