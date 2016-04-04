@@ -11,11 +11,22 @@ var numAgents = 12;
 var modo = 5;
 var maxStress = 0.5;
 
-var width = window.innerWidth;
-var height = window.innerHeight;
-var sl = Math.min(width,height) / 15;
+// var width = window.innerWidth;
+// var height = window.innerHeight;
+// var sl = Math.min(width,height) / 15;
 
+var sl = 10; // Default length of 10 units
+var width, height = 30*sl; // 30 triangles on each side
+
+// This should set ground to be 5 from bottom
+// Point A at (10, 5)
+// Point B at (25, 25)
+// Assuming W = H = 30 and (0, 0) is at top left
 var span = sl*5;
+var ground = height - span;
+var pointA = [span*2, ground];
+var pointB = [width-span, span];
+
 var startup = true, gameWon = false, gameLost = false;
 
 //var background, right, left;
@@ -25,9 +36,9 @@ var bot0Img, bot1Img, bot2Img, bot3Img;
 //var button0, button1, button2;
 var CB = 0;
 
-var ground = (height/2) + span;
-var pointA = [(width/2) - span, ground];
-var pointB = [(width/2) + span, (height/2) - span];
+// var ground = (height/2) + span;
+// var pointA = [(width/2) - span, ground];
+// var pointB = [(width/2) + span, (height/2) - span];
 
 // the preload function is prioritized by the p5 library, used for loading images
 // used for icons, background imagery
@@ -96,18 +107,18 @@ function draw() {
 
 function mousePressed() {
 		
-		// clear any existing truss 
-		for (var i = 0, length = agents.length; i < length; i++) {
-			agents[i].bot.remove();
-		}
-		edges = [];
-		nodes = [];
-		agents = [];
+	// clear any existing truss 
+	for (var i = 0, length = agents.length; i < length; i++) {
+		agents[i].bot.remove();
+	}
+	edges = [];
+	nodes = [];
+	agents = [];
 
-		// create and initiate a new truss object 
-		tr = new Truss();
-		tr.initiate();
-		loop();
+	// create and initiate a new truss object 
+	tr = new Truss();
+	tr.initiate();
+	loop();
 }
 
 
@@ -175,12 +186,10 @@ function Edge(n0, n1){
 
 	this.applySpringForce = function () {
 
-	    var dx = this.n1.x - this.n0.x;
-	    var dy = this.n1.y - this.n0.y;
-	    
-	    var dist = Math.sqrt((dx*dx)+(dy*dy));
-
-	    this.stress = Math.abs(1 - (dist/sl));
+	    vals = updateStress();
+	    dx = vals[0];
+	    dy = vlas[1];
+	    dist = vals[2];
 
 	    dx = dx / dist;
 	    dy = dy / dist;
@@ -191,6 +200,17 @@ function Edge(n0, n1){
 	    n1.fx -= dx * (dist - sl) * springConstant; 
 	    n1.fy -= dy * (dist - sl) * springConstant; 
 
+	}
+
+	this.updateStress = function() {
+	    var dx = this.n1.x - this.n0.x;
+	    var dy = this.n1.y - this.n0.y;
+	    
+	    var dist = Math.sqrt((dx*dx)+(dy*dy));
+
+	    this.stress = Math.abs(1 - (dist/sl));
+
+	    return [dx, dy, dist];
 	}
 
     this.render = function() {
@@ -905,6 +925,71 @@ Traverse.prototype.step = function ( a, tr){
 
 	return false;
 //}
+}
+
+
+// Adjacency class
+function Adjacency() {
+	this.adj = [];
+	this.w = 0;
+	this.h = 0;
+	this.edges = [];
+	this.nodes = [];
+	this.agents = [];
+	this.max = 0;
+
+	// Initializes class
+	this.init = function (egdes, nodes, agents) {
+		this.update(edges, nodes, agents);
+		this.adj = [[0 for i in range(this.w+1)] for j in range(this.h+1)];
+	}
+
+	// Updates class
+	this.update = function (edges, nodes, agents) {
+		this.edges = edges;
+		this.nodes = nodes;
+		this.agents = agents;
+		this.h = int(height/sl);
+		this.w = int(width/sl);
+		this.construct();
+	}
+
+	// Constructs adjacency matrix
+	this.construct = function () {
+		/* Every node has 3 potential edges connected to it:
+
+		o--a
+		|\
+		c b
+
+		We have a 31x31 node graph (I think)
+		We define an adjacency matrix adj such that adj[x][y] represents the 
+		edge where edge.n0 = x and edge.n1 = y
+		*/ 
+		this.max = 0;
+		for edge in this.edges:
+			x = edge.n0;
+			y = edge.n1;
+			edge.updateStress();
+			this.adj[int(x.x/sl)][int(y.y/sl)] = edge.stress;
+			if edge.stress > this.max:
+				this.max = edge.stress;
+	}
+
+	this.avgStress = function () {
+		sum(this.adj)/(len(adj)*len(adj[0]));
+	}
+
+	this.maxStress = function () {
+		if this.max == 0:
+			this.update();
+		return this.max;
+	}
+
+	// Returns True if a call to init is needed to update vals
+	this.needsUpdate = function (edges) {
+		return this.edges == edges;
+	}
 }
 
 
