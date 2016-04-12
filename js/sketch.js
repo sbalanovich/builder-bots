@@ -16,16 +16,17 @@ var maxStress = 0.5;
 // var sl = Math.min(width,height) / 15;
 
 var sl = 15; // Default length of 10 units
-var width, height = 30*sl; // 30 triangles on each side
+var wdth = 30*sl; // 30 triangles on each side
+var hght = 30*sl;
 
 // This should set ground to be 5 from bottom
 // Point A at (10, 5)
 // Point B at (25, 25)
 // Assuming W = H = 30 and (0, 0) is at top left
 var span = sl*5;
-var ground = height - span;
+var ground = hght - span;
 var pointA = [span*2, ground];
-var pointB = [width-span, span];
+var pointB = [wdth-span, span];
 
 var startup = true, gameWon = false, gameLost = false;
 
@@ -120,7 +121,7 @@ function mousePressed() {
 	tr.initiate();
 
 	adjacency = new Adjacency();
-	adjacency.init(edges, nodes, agents);
+	adjacency.init(edges, nodes, agents, wdth, hght);
 
 	loop();
 }
@@ -128,7 +129,7 @@ function mousePressed() {
 
 
 function keyPressed(){
-	adjacency.update(this.edges, this.nodes, this.agents);
+	adjacency.update(edges, nodes, agents, wdth, hght);
 	for (var i = 0; i < adjacency.adj.length; i++) {
 		for (var j = 0; j < adjacency.adj[0].length; j++) {
 			if (adjacency.adj[i][j] > 0) {
@@ -958,18 +959,19 @@ function Adjacency() {
 	this.max = 0;
 
 	// Initializes class
-	this.init = function (egdes, nodes, agents) {
-		this.update(edges, nodes, agents);
+	this.init = function (egdes, nodes, agents, width, height) {
+		this.update(edges, nodes, agents, width, height);
 		this.resetAdj();
 	}
 
 	// Updates class
-	this.update = function (edges, nodes, agents) {
+	this.update = function (edges, nodes, agents, width, height) {
 		this.edges = edges;
 		this.nodes = nodes;
 		this.agents = agents;
 		this.h = int(height/sl);
 		this.w = int(width/sl);
+		console.log(width, height, this.w, this.h);
 		this.construct();
 	}
 
