@@ -15,7 +15,7 @@ var maxStress = 0.5;
 // var height = window.innerHeight;
 // var sl = Math.min(width,height) / 15;
 
-var sl = 10; // Default length of 10 units
+var sl = 15; // Default length of 10 units
 var width, height = 30*sl; // 30 triangles on each side
 
 // This should set ground to be 5 from bottom
@@ -118,7 +118,26 @@ function mousePressed() {
 	// create and initiate a new truss object 
 	tr = new Truss();
 	tr.initiate();
+
+	adjacency = new Adjacency();
+	adjacency.init(edges, nodes, agents);
+
 	loop();
+}
+
+
+
+function keyPressed(){
+	adjacency.update(this.edges, this.nodes, this.agents);
+	for (var i = 0; i < adjacency.adj.length; i++) {
+		for (var j = 0; j < adjacency.adj[0].length; j++) {
+			if (adjacency.adj[i][j] > 0) {
+				console.log(i, j, adjacency.adj[i][j]);
+			}
+		}
+	}
+	// console.log(adjacency.adj);
+	return false;
 }
 
 
@@ -186,9 +205,9 @@ function Edge(n0, n1){
 
 	this.applySpringForce = function () {
 
-	    vals = updateStress();
+	    vals = this.updateStress();
 	    dx = vals[0];
-	    dy = vlas[1];
+	    dy = vals[1];
 	    dist = vals[2];
 
 	    dx = dx / dist;
@@ -941,7 +960,7 @@ function Adjacency() {
 	// Initializes class
 	this.init = function (egdes, nodes, agents) {
 		this.update(edges, nodes, agents);
-		this.adj = [[0 for i in range(this.w+1)] for j in range(this.h+1)];
+		this.resetAdj();
 	}
 
 	// Updates class
@@ -956,42 +975,86 @@ function Adjacency() {
 
 	// Constructs adjacency matrix
 	this.construct = function () {
-		/* Every node has 3 potential edges connected to it:
-
-		o--a
-		|\
-		c b
-
-		We have a 31x31 node graph (I think)
-		We define an adjacency matrix adj such that adj[n0][n1] represents the 
-		edge where edge.n0 = n0 and edge.n1 = n1
+		/* 
+			We have a 31x31 node graph (I think)
+			We define an adjacency matrix adj such that adj[n0][n1] represents the 
+			edge where edge.n0 = n0 and edge.n1 = n1
 		*/ 
 		this.max = 0;
-		this.adj = [[0 for i in range(this.w+1)] for j in range(this.h+1)];
-		for edge in this.edges:
+		this.resetAdj();
+		for (e = 0; e < this.edges.length; e++) {
+			edge = this.edges[e];
 			n0 = edge.n0;
-			n0_id = int(x.x/sl) + int(x.y/sl)*this.w;
+			n0_id = int(n0.x/sl) + int(n0.y/sl)*this.w;
 			n1 = edge.n1;
-			n1_id = int(y.x/sl) + int(y.y/sl)*this.w;
+			/*
+			  4   5
+			   \ /
+			3 - x - 0
+			   / \
+			  2   1
+			*/
+			n1_id = -1;
+			if (n1.x > n0.x) {
+				// RHS
+				if (n1.y > n0.y)
+					n1_id = 5;
+				if (n1.y < n0.y)
+					n1_id = 1;
+				else
+					n1_id = 0;
+			}
+			else {
+				// LHS
+				if (n1.y > n0.y)
+					n1_id = 4;
+				if (n1.y < n0.y)
+					n1_id = 2;
+				else
+					n1_id = 3;
+			}
 			edge.updateStress();
 			this.adj[n0_id][n1_id] = edge.stress;
-			if edge.stress > this.max:
+			if (edge.stress > this.max) {
 				this.max = edge.stress;
+			}
+		}
 	}
 
 	this.avgStress = function () {
-		sum(this.adj)/(len(this.edges));
+		sum(this.adj)/(this.edges.length);
 	}
 
 	this.maxStress = function () {
-		if this.max == 0:
+		if (this.max == 0) {
 			this.update();
+		}
 		return this.max;
 	}
 
 	// Returns True if a call to init is needed to update vals
 	this.needsUpdate = function (edges) {
 		return this.edges == edges;
+	}
+
+	this.showAdj = function() {
+		console.log(this.adj);
+	}
+
+	this.resetAdj = function() {
+		this.adj = [];
+		// for (i = 0; i < this.h+1; i++) {
+		// 	this.adj.push([]);
+		// 	for (j = 0; j < this.w+1; j++) {
+		// 		this.adj[i].push(0);
+		// 	}
+		// }
+		for (i = 0; i < this.h*this.w+1; i++) {
+			this.adj.push([]);
+			for (j = 0; j < 6; j++) {
+				this.adj[i].push(0);
+			}
+		}
 	}
 }
 
