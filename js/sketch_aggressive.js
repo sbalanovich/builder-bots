@@ -8,14 +8,14 @@ var agents = [];
 var agentSprites;
 
 var numAgents = 12;
-var modo = 5;
+var modo = 1;
 var maxStress = 0.5;
 
 // var width = window.innerWidth;
 // var height = window.innerHeight;
 // var sl = Math.min(width,height) / 15;
 
-var sl = 30; // Default length of 10 units
+var sl = 20; // Default length of 10 units
 var wdth = 30*sl; // 30 triangles on each side
 var hght = 30*sl;
 

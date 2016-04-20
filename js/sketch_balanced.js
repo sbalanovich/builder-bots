@@ -268,8 +268,8 @@ function Agent(tr, n){
     this.behaviors.push(new Random());
 
     // for now, randomly initiate bots as either Directional or Reinforce builders
-    this.CurrentBehavior = this.behaviors[4];
-    this.PreviousBehavior = this.behaviors[4];
+    this.CurrentBehavior = this.behaviors[0];
+    this.PreviousBehavior = this.behaviors[0];
 
     // if (Math.random() > 0.5){
     // 	this.CurrentBehavior = this.behaviors[2];
