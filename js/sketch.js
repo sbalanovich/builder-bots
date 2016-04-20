@@ -15,7 +15,7 @@ var maxStress = 0.5;
 // var height = window.innerHeight;
 // var sl = Math.min(width,height) / 15;
 
-var sl = 15; // Default length of 10 units
+var sl = 20; // Default length of 10 units
 var wdth = 30*sl; // 30 triangles on each side
 var hght = 30*sl;
 
@@ -265,15 +265,16 @@ function Agent(tr, n){
     this.behaviors.push(new WalkDown());
     this.behaviors.push(new Reinforce());
     this.behaviors.push(new Traverse());
+    this.behaviors.push(new Random());
 
     // for now, randomly initiate bots as either Directional or Reinforce builders
-    this.CurrentBehavior = this.behaviors[0];
-    this.PreviousBehavior = this.behaviors[0];
+    this.CurrentBehavior = this.behaviors[4];
+    this.PreviousBehavior = this.behaviors[4];
 
-    if (Math.random() > 0.5){
-    	this.CurrentBehavior = this.behaviors[2];
-	    this.PreviousBehavior = this.behaviors[2];
-    }
+    // if (Math.random() > 0.5){
+    // 	this.CurrentBehavior = this.behaviors[2];
+	   //  this.PreviousBehavior = this.behaviors[2];
+    // }
 
     this.currentNode = n;
     this.previousNode = n;
@@ -292,6 +293,9 @@ function Agent(tr, n){
     	if (this.CurrentBehavior.name == "Traverse"){
     		this.bot.changeImage("bot3");
     	}
+    	if (this.CurrentBehavior.name == "Random"){
+    		this.bot.changeImage("bot0");
+    	}
         this.CurrentBehavior.step(this, tr);
         this.rot = Math.atan2(this.currentNode.y - this.previousNode.y, this.currentNode.x - this.previousNode.x) * 180 / Math.PI + 90;
     }
@@ -303,7 +307,64 @@ function Agent(tr, n){
 
     	this.bot.rotation = this.rot;
 	}
+
+	this.tryMove = function(n, weights, walkdown) {
+		var walkdown = typeof b !== 'undefined' ?  b : false;
+		// TRY TO MOVE
+		for(var i = 0; i < 6; i++) {
+			if(weights[i] == 0) continue;
+
+			// if the node doesn't have that edge, the probability is 0
+			if(!n.e[i]){
+				weights[i] = 0;
+				continue;
+			}
+
+			// if the edge is under too much stress, the probability is 0
+			var ee = n.e[i];
+
+			// if the node is occupied, the probability is 0
+			var N0 = ee.n0;
+			var N1 = ee.n1;
+
+			var nextNode = N0;
+			if (nextNode.id == n.id) nextNode = N1;
+
+			if (nextNode.isOccupied){
+				weights[i] = 0;
+				continue;
+			}
+			if (walkdown == true) {
+				var nX = n.x + tr.dirs[i][0];
+				var nY = n.y + tr.dirs[i][1];
+
+				var preDist = sqrt((pointA[0] - n.x)*(pointA[0] - n.x) + (pointA[1] - n.y)*(pointA[1] - n.y))
+				var newDist = sqrt((pointA[0] - nX)*(pointA[0] - nX) + (pointA[1] - nY)*(pointA[1] - nY))
+
+				// if nextNode is closer to target, double probability
+				if (newDist < preDist){
+					weights[i] = weights[i] * 20;
+				}
+			}
+		}
+		return weights;
+	}
 }
+
+// function RandomAgent (tr, n){
+// 	Behavior.call(this, tr, n);
+// 	this.name = "Random";
+// }
+
+// // Define the prototype as inherited from Behavior
+// RandomAgent.prototype = Object.create(Behavior.prototype);
+// // Set the "constructor" property to refer to Behavior
+// RandomAgent.prototype.constructor = Behavior;
+
+// RandomAgent.prototype.step = function ( a, tr){
+// 	Behavior.prototype.step.call(this);
+// }
+
 
 
 // ████████╗██████╗ ██╗   ██╗███████╗███████╗
@@ -347,6 +408,7 @@ function Truss() {
         for (var i = 0; i < agents.length; ++i){
             agents[i].update(this);
         }
+        adjacency.addStep();
     }     
 
     this.move = function (){
@@ -506,6 +568,92 @@ Behavior.prototype.getRandom = function (weights)  {
 	return strutIndex;
 }
 
+///////////////////                 Random              ///////////////////
+function Random (a, tr){
+	Behavior.call(this, a, tr);
+	this.name = "Random";
+}
+
+// Define the prototype as inherited from Behavior
+Random.prototype = Object.create(Behavior.prototype);
+// Set the "constructor" property to refer to Behavior
+Random.prototype.constructor = Behavior;
+
+Random.prototype.step = function ( a, tr){
+
+	Behavior.prototype.step.call(this);
+	// find the node that the agent is sitting on
+	a.previousNode = a.currentNode;
+	var n = a.currentNode;
+	// console.log(n);
+
+	var weights =  [20, 20, 20, 20, 20, 20];
+	// Don't go down or left beyond point A
+	if (a.currentNode.x < pointA[0]-sl) {
+		weights[2] =  0;
+		weights[3] =  0;
+		weights[4] =  0;
+	}
+	if (a.currentNode.y > pointA[1]+sl) {
+		weights[4] =  0;
+		weights[5] =  0;
+	}
+	// Don't go up or right beyond point B
+	if (a.currentNode.x > pointB[0]+sl) {
+		weights[1] =  0;
+		weights[0] =  0;
+		weights[5] =  0;
+	}
+	if (a.currentNode.y < pointB[1]-sl) {
+		weights[1] =  0;
+		weights[2] =  0;
+	}
+
+	var strutIndex = this.getRandom(weights);
+
+	if (strutIndex < 6){
+		var ee = n.e[strutIndex];
+
+		if (ee != null){
+			var N0 = ee.n0;
+			var N1 = ee.n1;
+
+			var nextNode = N0;
+			if (nextNode.id == n.id) nextNode = N1;
+
+			a.previousNode = a.currentNode;
+			a.currentNode = nextNode;
+			nextNode.isOccupied = true;
+			n.isOccupied = false;
+			return true;
+		}
+		else{
+			console.log("fail");
+		}
+	}
+
+	strutIndex = this.getRandom(weights);
+
+	if (strutIndex < 6){
+		var ee = tr.extendNode(n, strutIndex);
+
+		if (ee == true){
+			a.CurrentBehavior = a.behaviors[1];
+			a.PreviousBehavior = a.behaviors[4];
+		}
+		else{
+			console.log("fail");
+		}
+	}
+
+	return false;
+//}
+}
+
+
+
+//////////////////////////////////////
+
 
 
 // ██████╗ ██╗██████╗ ███████╗ ██████╗████████╗██╗ ██████╗ ███╗   ██╗ █████╗ ██╗     
@@ -537,30 +685,7 @@ Directional.prototype.step = function ( a, tr){
 	var weights =  [20, 20, 20, 20, 10, 10];
 
 	// TRY TO MOVE
-	for(var i = 0; i < 6; i++) {
-		if(weights[i] == 0) continue;
-
-		// if the node doesn't have that edge, the probability is 0
-		if(!n.e[i]){
-			weights[i] = 0;
-			continue;
-		}
-
-		// if the edge is under too much stress, the probability is 0
-		var ee = n.e[i];
-
-		// if the node is occupied, the probability is 0
-		var N0 = ee.n0;
-		var N1 = ee.n1;
-
-		var nextNode = N0;
-		if (nextNode.id == n.id) nextNode = N1;
-
-		if (nextNode.isOccupied){
-			weights[i] = 0;
-			continue;
-		}
-	}
+	weights = a.tryMove(n, weights);
 
 	// if there is only one move choice, switch to build instead
 	var choices = 0;
@@ -677,41 +802,7 @@ WalkDown.prototype.step = function ( a, tr){
 	}
 
 	// TRY TO MOVE
-	for(var i = 0; i < 6; i++) {
-
-		if(weights[i] == 0) continue;
-
-		// if the node doesn't have that edge, the probability is 0
-		if(!n.e[i]){
-			weights[i] = 0;
-			continue;
-		}
-
-		// if the node is occupied, the probability is 0
-		var ee = n.e[i];
-
-		var N0 = ee.n0;
-		var N1 = ee.n1;
-
-		var nextNode = N0;
-		if (nextNode.id == n.id) nextNode = N1;
-
-		if (nextNode.isOccupied){
-			weights[i] = 0;
-			continue;
-		}
-
-		var nX = n.x + tr.dirs[i][0];
-		var nY = n.y + tr.dirs[i][1];
-
-		var preDist = sqrt((pointA[0] - n.x)*(pointA[0] - n.x) + (pointA[1] - n.y)*(pointA[1] - n.y))
-		var newDist = sqrt((pointA[0] - nX)*(pointA[0] - nX) + (pointA[1] - nY)*(pointA[1] - nY))
-
-		// if nextNode is closer to target, double probability
-		if (newDist < preDist){
-			weights[i] = weights[i] * 20;
-		}
-	}
+	weights = a.tryMove(n, weights, true);
 
 	var strutIndex = this.getRandom(weights);
 
@@ -801,30 +892,7 @@ Reinforce.prototype.step = function ( a, tr){
 
 	
 	// TRY TO MOVE
-	for(var i = 0; i < 6; i++) {
-		if(weights[i] == 0) continue;
-
-		// if the node doesn't have that edge, the probability is 0
-		if(!n.e[i]){
-			weights[i] = 0;
-			continue;
-		}
-
-		// if the edge is under too much stress, the probability is 0
-		var ee = n.e[i];
-
-		// if the node is occupied, the probability is 0
-		var N0 = ee.n0;
-		var N1 = ee.n1;
-
-		var nextNode = N0;
-		if (nextNode.id == n.id) nextNode = N1;
-
-		if (nextNode.isOccupied){
-			weights[i] = 0;
-			continue;
-		}
-	}
+	weights = a.tryMove(n, weights);
 
 
 	var strutIndex = this.getRandom(weights);
@@ -884,30 +952,7 @@ Traverse.prototype.step = function ( a, tr){
 	var weights =  [20, 20, 20, 20, 10, 10];
 
 	// TRY TO MOVE
-	for(var i = 0; i < 6; i++) {
-		if(weights[i] == 0) continue;
-
-		// if the node doesn't have that edge, the probability is 0
-		if(!n.e[i]){
-			weights[i] = 0;
-			continue;
-		}
-
-		// if the edge is under too much stress, the probability is 0
-		var ee = n.e[i];
-
-		// if the node is occupied, the probability is 0
-		var N0 = ee.n0;
-		var N1 = ee.n1;
-
-		var nextNode = N0;
-		if (nextNode.id == n.id) nextNode = N1;
-
-		if (nextNode.isOccupied){
-			weights[i] = 0;
-			continue;
-		}
-	}
+	a.tryMove(n, weights);
 
 	// if there is only one move choice, switch to build instead
 	var choices = 0;
@@ -956,6 +1001,7 @@ function Adjacency() {
 	this.edges = [];
 	this.nodes = [];
 	this.agents = [];
+	this.steps = 0;
 	this.max = 0;
 
 	// Initializes class
@@ -971,7 +1017,6 @@ function Adjacency() {
 		this.agents = agents;
 		this.h = int(height/sl);
 		this.w = int(width/sl);
-		console.log(width, height, this.w, this.h);
 		this.construct();
 	}
 
@@ -984,7 +1029,7 @@ function Adjacency() {
 		*/ 
 		this.max = 0;
 		this.resetAdj();
-		for (e = 0; e < this.edges.length; e++) {
+		for (var e = 0; e < this.edges.length; e++) {
 			edge = this.edges[e];
 			n0 = edge.n0;
 			n0_id = int(n0.x/sl) + int(n0.y/sl)*this.w;
@@ -1024,7 +1069,13 @@ function Adjacency() {
 	}
 
 	this.avgStress = function () {
-		sum(this.adj)/(this.edges.length);
+		var sumAdj = 0;
+		for (var i = 0; i < this.h*this.w+1; i++) {
+			for (var j = 0; j < 6; j++) {
+				sumAdj += this.adj[i][j];
+			}
+		}
+		return sumAdj/(this.edges.length);
 	}
 
 	this.maxStress = function () {
@@ -1032,6 +1083,26 @@ function Adjacency() {
 			this.update();
 		}
 		return this.max;
+	}
+
+	this.addStep = function () {
+		this.steps += 1;
+	}
+
+	this.totalSteps = function (){
+		return this.steps;
+	}
+
+	this.totalStruts = function (){
+		struts = 0;
+		for (var i = 0; i < this.h*this.w+1; i++) {
+			for (var j = 0; j < 6; j++) {
+				if (this.adj[i][j] != 0) {
+					struts += 1;
+				}
+			}
+		}
+		return struts;
 	}
 
 	// Returns True if a call to init is needed to update vals
@@ -1043,17 +1114,24 @@ function Adjacency() {
 		console.log(this.adj);
 	}
 
+	// Returns proportion of error of the matrix against baseline
+	this.adjError = function(baselineAdj) {
+		var sumAdj = 0;
+		var adjDiff = 0;
+		for (var i = 0; i < this.h*this.w+1; i++) {
+			for (var j = 0; j < 6; j++) {
+				sumAdj += baselineAdj[i][j];
+				adjDiff += Math.abs(this.adj[i][j] - baselineAdj[i][j]);
+			}
+		}
+		return adjDiff/sumAdj;
+	}
+
 	this.resetAdj = function() {
 		this.adj = [];
-		// for (i = 0; i < this.h+1; i++) {
-		// 	this.adj.push([]);
-		// 	for (j = 0; j < this.w+1; j++) {
-		// 		this.adj[i].push(0);
-		// 	}
-		// }
-		for (i = 0; i < this.h*this.w+1; i++) {
+		for (var i = 0; i < this.h*this.w+1; i++) {
 			this.adj.push([]);
-			for (j = 0; j < 6; j++) {
+			for (var j = 0; j < 6; j++) {
 				this.adj[i].push(0);
 			}
 		}

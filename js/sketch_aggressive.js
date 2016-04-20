@@ -15,7 +15,7 @@ var maxStress = 0.5;
 // var height = window.innerHeight;
 // var sl = Math.min(width,height) / 15;
 
-var sl = 15; // Default length of 10 units
+var sl = 30; // Default length of 10 units
 var wdth = 30*sl; // 30 triangles on each side
 var hght = 30*sl;
 
