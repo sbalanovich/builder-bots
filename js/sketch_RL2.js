@@ -71,9 +71,10 @@ function setup() {
 
 	// RL Setup 
 	env = new Gridworld(); // create environment
-    state = env.startState();
+    //state = env.startState();
     spec = { alpha: 0.01 }
-    agent = new RL.TDAgent(env, spec);
+    //agent = new RL.TDAgent(env, spec);
+    agent = new RL.DQNAgent(env, spec);
 
     updateSprites(false);
 }
@@ -120,7 +121,7 @@ function draw() {
 
 function mousePressed() {
 		
-	// clear any existing truss 
+/*	// clear any existing truss 
 	for (var i = 0, length = agents.length; i < length; i++) {
 		agents[i].bot.remove();
 	}
@@ -136,8 +137,10 @@ function mousePressed() {
 	adjacency.init(edges, nodes, agents, wdth, hght);
 
 	loop();
-}
+}*/
 
+
+}
 
 
 function keyPressed(){
@@ -277,13 +280,9 @@ function Agent(tr, n){
     this.CurrentBehavior = this.behaviors[1];
     this.PreviousBehavior = this.behaviors[1];
 
-    //if (Math.random() > 0.5){
-    //	this.CurrentBehavior = this.behaviors[2];
-	//    this.PreviousBehavior = this.behaviors[2];
-    //}
 
-    this.currentNode = n;
-    this.previousNode = n;
+    this.currentNode = nodes[pointA];
+    this.previousNode = nodes[pointA];
 
     this.update = function(tr){
 
@@ -380,7 +379,7 @@ function Truss() {
 			}
 
 			for (var i = 0, length = edges.length; i < length; i++) {
-				//console.log("move edge");
+			    //console.log("move edge");
 				edges[i].applySpringForce();
 				
 			}
@@ -638,10 +637,11 @@ WalkDown.prototype.step = function ( a, tr){
 
  var steps_per_tick = 1;
 var sid = -1;
-var nsteps_history = [];
-var nsteps_counter = 0;
-var nflot = 1000;
-
+var action, state;
+var smooth_reward_history = [];
+var smooth_reward = null;
+var flott = 0;
+var nflot = 0;
 
 // ████████╗██████╗  █████╗ ██╗   ██╗███████╗██████╗ ███████╗███████╗
 // ╚══██╔══╝██╔══██╗██╔══██╗██║   ██║██╔════╝██╔══██╗██╔════╝██╔════╝
@@ -663,27 +663,54 @@ Traverse.prototype.step = function ( aa, tr){
 
 	Behavior.prototype.step.call(this);
 	// find the node that the agent is sitting on
-	aa.previousNode = aa.currentNode;
-	var n = aa.currentNode;
+	
+	//console.log("new traverse");
+	//console.log(aa.previousNode.id, aa.currentNode.id);
+	//aa.previousNode = aa.currentNode;
+	
 
 	
-    var a = agent.act(state); // ask agent for an action
-    var obs = env.sampleNextState(state, a); // run it through environment dynamics
-    agent.learn(obs.r); // allow opportunity for the agent to learn
-    state = obs.ns; // evolve environment to next state
-    nsteps_counter += 1;
-    if(typeof obs.reset_episode !== 'undefined') {
-      agent.resetEpisode();
-      // record the reward achieved
-      if(nsteps_history.length >= nflot) {
-        nsteps_history = nsteps_history.slice(1);
-      }
-      nsteps_history.push(nsteps_counter);
-      nsteps_counter = 0;
-    }
+    state = env.getState();
+    action = agent.act(state);
 
-	aa.currentNode = nodes[state];
-	aa.previousNode = aa.currentNode;
+    var neighbor = nodes[state[0]].neighbors[action];
+
+    if(neighbor) {
+    	aa.previousNode = aa.currentNode;
+	    var obs = env.sampleNextState(action);
+	    agent.learn(obs.r);
+	 
+
+	    var pn = aa.previousNode;
+	  	var n = nodes[state[0]];
+
+	    //var sns = aa.currentNode.neighbors[i]; // next state sample is the index of the node at neighbors
+
+	    // check if strut exists, if not, add it
+	  	if ( pn.e[action] == undefined){	
+	  		// add strut 
+	  		var ed = tr.addEdge(pn, n);
+
+	  		// tell nodes.e[] about it
+	  		pn.e[action] = ed;
+			n.e[tr.pairs[action]] = ed;
+
+	  		// unfreeze node
+	  		if (n.id !== pointA  &&  n.id !== pointA+1){ // if not start pt
+	  			n.fixed = false;
+	  		}
+
+	  		
+	  	}
+
+	  	// update adjacency matrix
+	  	adjacency.update(edges, nodes, agents, wdth, hght);
+
+		aa.currentNode = nodes[state[0]];
+		console.log(state);
+		//console.log(aa.previousNode.id, aa.currentNode.id);
+		//aa.previousNode = aa.currentNode;
+	}
 }
 
 
@@ -828,10 +855,10 @@ function Adjacency() {
 
 // Gridworld
 var Gridworld = function(){
-  this.Rarr = null; // reward array
+/*  this.Rarr = null; // reward array
   this.T = null; // node types 0 = inactive, 1 = active
   this.s = pointA;
-  this.ns = pointA;
+  this.ns = pointA;*/
   this.reset()
 }
 Gridworld.prototype = {
@@ -840,21 +867,21 @@ Gridworld.prototype = {
     // hardcoding one gridworld for now
     this.gw = wdth;
     this.gh = hght;
-    this.gs = this.gh * this.gw; // number of states
+    //this.gs = this.gh * this.gw; // number of states
+    this.gs = 8; // number of states
 
-    // specify some rewards
-    var Rarr = R.zeros(this.gs);
-    var T = R.zeros(this.gs);
-    
-    Rarr[pointB] = 1; // end node gets a reward
+    // define parameters of state space
+    this.id = pointA;
+    this.px = nodes[pointA].x;
+    this.py = nodes[pointA].y;
+    this.f0 = 0;
+    this.f1 = 0;
+    this.f2 = 0;
+    this.f3 = 0;
+    this.f4 = 0;
+    this.f5 = 0;
 
-    T[pointA] = 1; // start node is active
 
-    this.Rarr = Rarr;
-    this.T = T;
-
-    //tr.initiate();
-    //adjacency.resetAdj();
     // clear any existing truss 
 	for (var i = 0, length = agents.length; i < length; i++) {
 		agents[i].bot.remove();
@@ -871,114 +898,58 @@ Gridworld.prototype = {
 	adjacency.init(edges, nodes, agents, wdth, hght);
 
   },
-  reward: function(s,a,ns) {
-    // reward of being in s, taking action a, and ending up in ns
-    return this.Rarr[s];
+  getState: function() {
+        var s = [this.id, this.id, this.f0, this.f1, this.f2, this.f3, this.f4, this.f5];
+        return s;
   },
-  nextStateDistribution: function(s,a) {
-    // given (s,a) return distribution over s' (in sparse form)
+  sampleNextState: function(a) {
     
-    if(s === pointB) {
-      // agent wins! teleport to start
-      var ns = this.startState();
-    } else {
-      // ordinary space
-	  	for ( var i = 0; i < 6; i++){
-	      if(a === i) {
-
-	      	var ns = nodes[s].neighbors[i]; // next state is the index of the node at neighbors
-
-	      	// check if strut exists, if not, add it and switch to move down
-	      	//if (/*adjacency.adj[ns][i] == undefined ||*/ adjacency.adj[s][i] == undefined){
-	      	if ( nodes[s].e[i] == undefined){	
-	      		// add strut 
-	      		var ed = tr.addEdge(nodes[s], nodes[ns]);
-
-	      		// tell nodes.e[] about it
-	      		nodes[s].e[i] = ed;
-				nodes[ns].e[tr.pairs[i]] = ed;
-
-	      		// unfreeze node
-	      		if (ns != pointA  &&  ns != pointA+1){ // if not start pt
-	      			nodes[ns].fixed = false;
-	      		}
-
-	      		// update adjacency matrix
-	      		adjacency.update(edges, nodes, agents, width, height);
-
-	      		
-
-	    		// switch to walk down
-	      		//agents[0].CurrentBehavior = agents[0].PreviousBehavior;
-	    		//agents[0].PreviousBehavior = agents[0].behaviors[0]; 
-
-	      		break; // exit after the first success (should only be one?)
-	      	}
-	     
-	      	
-	      }
-		}
-
-
-    }
-    // gridworld is deterministic, so return only a single next state
-    return ns;
-  },
-  sampleNextState: function(s,a) {
-    // gridworld is deterministic, so this is easy
-    var ns = this.nextStateDistribution(s,a);
-    var r = this.Rarr[s]; // observe the raw reward of being in s, taking a, and ending up in ns
-    //console.log(" ");
-    //console.log(r);
-    r -= 0.01 * adjacency.maxDisplacement();
+    var r = -0.01 * adjacency.maxDisplacement(); // observe the raw reward of being in s, taking a, and ending up in ns
     r -= 0.001 * edges.length; // every step takes a bit of negative reward times num edges
-    console.log(r);
-    var out = {'ns':ns, 'r':r};
-    if(s === pointB && ns === this.startState()) {
-	      // episode is over
-	      out.reset_episode = true;
-	      console.log("over");
+   
+   	
 
-	          // clear any existing truss 
-		for (var i = 0, length = agents.length; i < length; i++) {
-			agents[i].bot.remove();
+
+   	var neighbor = nodes[state[0]].neighbors[a];
+
+    if(neighbor) {	// if this exists as a possible move
+
+    	adjacency.update(edges, nodes, agents, width, height);
+
+    	
+    	this.id = neighbor;
+
+    	// update current forces
+    	this.f0 = adjacency.adj[neighbor][0];
+    	this.f1 = adjacency.adj[neighbor][1];
+    	this.f2 = adjacency.adj[neighbor][2];
+    	this.f3 = adjacency.adj[neighbor][3];
+    	this.f4 = adjacency.adj[neighbor][4];
+    	this.f5 = adjacency.adj[neighbor][5];
+
+
+    	if(neighbor === pointB) {
+		      // episode is over
+		      //out.reset_episode = true;
+		      console.log("over");
+
+		      r += 1; // assign a reward for success
+
+		      //this.reset();
 		}
-		edges = [];
-		nodes = [];
-		agents = [];
-
-		// create and initiate a new truss object 
-		tr = new Truss();
-		tr.initiate();
-
-		adjacency = new Adjacency();
-		adjacency.init(edges, nodes, agents, wdth, hght);
-
-
-
 
     }
+    else {
+    	// return null
+    	//this.id = 
+    }
+
+    // evolve state in time
+    var ns = this.getState();
+    var out = {'ns':ns, 'r':r};
     return out;
   },
-  allowedActions: function(s) {
-  	// here we need to check which nodes have (possible) adjacency
-  	//console.log(s);
-    /*var x = this.stox(s);
-    var y = this.stoy(s);*/
-    var as = [];
-
-    for (var e = 0; e < 6; e++){
-	    if(nodes[s].neighbors[e]) {	as.push(e); }
-	}
-	/*if(x > 0) { as.push(0); }
-    if(y > 0) { as.push(1); }
-    if(y < this.gh-1) { as.push(2); }
-    if(x < this.gw-1) { as.push(3); }*/
-    return as;
-  },
-  randomState: function() { return Math.floor(Math.random()*this.gs); },
-  startState: function() { return pointA; },
-  getNumStates: function() { return this.gs; },
+  getNumStates: function() { return 8; },
   getMaxNumActions: function() { return 6; },
 
   // private functions
@@ -988,6 +959,28 @@ Gridworld.prototype = {
 }
 
 
+// below not yet used, could be helpful for loading successful agents
+function saveAgent() {
+      $("#mysterybox").fadeIn();
+      $("#mysterybox").val(JSON.stringify(agent.toJSON()));
+    }
+
+function loadAgent() {
+  $.getJSON( "agentzoo/puckagent.json", function( data ) {
+    agent.fromJSON(data); // corss your fingers...
+    // set epsilon to be much lower for more optimal behavior
+    agent.epsilon = 0.05;
+    $("#slider").slider('value', agent.epsilon);
+    $("#eps").html(agent.epsilon.toFixed(2));
+    // kill learning rate to not learn
+    agent.alpha = 0;
+  });
+}
+
+function resetAgent() {
+  eval($("#agentspec").val())
+  agent = new RL.DQNAgent(env, spec);
+}
 
 
 
