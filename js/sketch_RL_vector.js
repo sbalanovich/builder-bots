@@ -301,8 +301,10 @@ function Agent(tr, n){
     	if (this.CurrentBehavior.name == "Traverse"){
     		this.bot.changeImage("bot3");
     	}
+    	console.log("Here")
+    	console.log(this.currentNode)
         this.CurrentBehavior.step(this, tr);
-        this.rot = Math.atan2(this.currentNode.y - this.previousNode.y, this.currentNode.x - this.previousNode.x) * 180 / Math.PI + 90;
+        //this.rot = Math.atan2(this.currentNode.y - this.previousNode.y, this.currentNode.x - this.previousNode.x) * 180 / Math.PI + 90;
     }
 
     this.render = function() {
@@ -922,17 +924,23 @@ Gridworld.prototype = {
 	  	for ( var i = 0; i < 6; i++){
 	      if(a === i) {
 
+	      	// console.log(nodes)
+	      	// console.log(s%100)
 	      	var ns_ = nodes[s%100].neighbors[i]; // next state is the index of the node at neighbors
-
+	      	// console.log(this.ns_)
+	      	if (ns_ > 24){
+	      		break
+	      	}
 	      	// transform to new state form
-	      	this.ns = 0;
+	      	ns = 0;
   			for (i = 0; i < 6; i++) {
-  				if(nodes[this.ns_].neighbors[i]) {
+  				// console.log(nodes[ns_])
+  				if(nodes[ns_].neighbors[i]) {
   					this.ns += Math.pow(2,i);
   				}
   			}
   			// append the node's state
-  			this.ns = this.ns*100 + this.ns_;
+  			ns = ns*100 + ns_;
 
 	      	// check if strut exists, if not, add it and switch to move down
 	      	//if (/*adjacency.adj[ns][i] == undefined ||*/ adjacency.adj[s][i] == undefined){
@@ -1015,11 +1023,14 @@ Gridworld.prototype = {
     // console.log("----------")
     // console.log(nodes[03]);
     // console.log("----------")
+    if (s%100 > 24){
+    	return as
+    }
     for (var e = 0; e < 6; e++){
     	// console.log("Modulo")
     	// console.log((s%100))
     	// console.log(nodes[25].neighbors[0])
-    	console.log(nodes[s%100].neighbors[e])
+    	// console.log(nodes[s%100].neighbors[e])
 	    if(nodes[s%100].neighbors[e]) {	as.push(e); }
 	}
 	/*if(x > 0) { as.push(0); }
