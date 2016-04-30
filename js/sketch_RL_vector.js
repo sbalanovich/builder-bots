@@ -8,7 +8,7 @@ var agents = [];
 var agentSprites;
 
 var numAgents = 1;
-var modo = 1;
+var modo = 20;
 var maxStress = 0.5;
 
 var sl = 45; // Default length of 45 units
@@ -301,8 +301,6 @@ function Agent(tr, n){
     	if (this.CurrentBehavior.name == "Traverse"){
     		this.bot.changeImage("bot3");
     	}
-    	console.log("Here")
-    	console.log(this.currentNode)
         this.CurrentBehavior.step(this, tr);
         //this.rot = Math.atan2(this.currentNode.y - this.previousNode.y, this.currentNode.x - this.previousNode.x) * 180 / Math.PI + 90;
     }
@@ -684,7 +682,7 @@ Traverse.prototype.step = function ( aa, tr){
       nsteps_counter = 0;
     }
 
-	aa.currentNode = nodes[state];
+	aa.currentNode = nodes[state%100];
 	aa.previousNode = aa.currentNode;
 }
 
@@ -840,7 +838,7 @@ var Gridworld = function(){
 
   this.state = 0;
   for (i = 0; i < 6; i++) {
-  	if(nodes[this.s].neighbors[i]) {
+  	if(nodes[this.s].e[i] != undefined) {
   		this.state += Math.pow(2,i);
   		}
   	}
@@ -879,7 +877,7 @@ Gridworld.prototype = {
 
     this.sA = 0;
   	for (i = 0; i < 6; i++) {
-  		if(nodes[pointA].neighbors[i]) {
+  		if(nodes[pointA].e[i] != undefined) {
   			this.sA += Math.pow(2,i);
   		}
   	}
@@ -924,23 +922,22 @@ Gridworld.prototype = {
 	  	for ( var i = 0; i < 6; i++){
 	      if(a === i) {
 
-	      	// console.log(nodes)
-	      	// console.log(s%100)
 	      	var ns_ = nodes[s%100].neighbors[i]; // next state is the index of the node at neighbors
-	      	// console.log(this.ns_)
 	      	if (ns_ > 24){
-	      		break
+	      		break;
 	      	}
 	      	// transform to new state form
 	      	ns = 0;
+
   			for (i = 0; i < 6; i++) {
-  				// console.log(nodes[ns_])
-  				if(nodes[ns_].neighbors[i]) {
-  					this.ns += Math.pow(2,i);
+  				console.log(nodes[ns_].e[i])
+  				if(nodes[ns_].e[i] != undefined) {
+  					ns += Math.pow(2,i);
   				}
   			}
   			// append the node's state
   			ns = ns*100 + ns_;
+  			// console.log(ns)
 
 	      	// check if strut exists, if not, add it and switch to move down
 	      	//if (/*adjacency.adj[ns][i] == undefined ||*/ adjacency.adj[s][i] == undefined){
@@ -961,7 +958,6 @@ Gridworld.prototype = {
 	      		adjacency.update(edges, nodes, agents, width, height);
 
 	      		
-
 	    		// switch to walk down
 	      		//agents[0].CurrentBehavior = agents[0].PreviousBehavior;
 	    		//agents[0].PreviousBehavior = agents[0].behaviors[0]; 
@@ -986,7 +982,7 @@ Gridworld.prototype = {
     //console.log(r);
     r -= 0.01 * adjacency.maxDisplacement();
     r -= 0.001 * edges.length; // every step takes a bit of negative reward times num edges
-    console.log(r);
+    // console.log(r);
     var out = {'ns':ns, 'r':r};
     if(s%100 === pointB && ns%100 === (this.startState())%100) {
 	      // episode is over
@@ -1018,19 +1014,10 @@ Gridworld.prototype = {
     var y = this.stoy(s);*/
     var as = [];
 
-    // console.log("----------")
-    // console.log(s)
-    // console.log("----------")
-    // console.log(nodes[03]);
-    // console.log("----------")
     if (s%100 > 24){
     	return as
     }
     for (var e = 0; e < 6; e++){
-    	// console.log("Modulo")
-    	// console.log((s%100))
-    	// console.log(nodes[25].neighbors[0])
-    	// console.log(nodes[s%100].neighbors[e])
 	    if(nodes[s%100].neighbors[e]) {	as.push(e); }
 	}
 	/*if(x > 0) { as.push(0); }
@@ -1043,7 +1030,7 @@ Gridworld.prototype = {
   startState: function() { 
   	this.state = 0;
   	for (i = 0; i < 6; i++) {
-  		if(nodes[pointA].neighbors[i]) {
+  		if(nodes[pointA].e[i] != undefined) {
   			this.state += Math.pow(2,i);
   		}
   	}
