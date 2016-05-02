@@ -7,7 +7,7 @@ var edges = [];
 var agents = [];
 var agentSprites;
 
-var numAgents = 1;
+var numAgents = 3;
 var modo = 1;
 var maxStress = 0.5;
 
@@ -16,8 +16,8 @@ var maxStress = 0.5;
 // var sl = Math.min(width,height) / 15;
 
 var sl = 45; // Default length of 10 units
-var wdth = 5; // 30 triangles on each side
-var hght = 5;
+var wdth = 8; // 30 triangles on each side
+var hght = 8;
 
 // This should set ground to be 5 from bottom
 // Point A at (10, 5)
@@ -25,8 +25,8 @@ var hght = 5;
 // Assuming W = H = 30 and (0, 0) is at top left
 var span = sl*5;
 var ground = hght*sl - span;
-var pointA = 20;
-var pointB = 4;
+var pointA = 49;
+var pointB = 14;
 
 var startup = true, gameWon = false, gameLost = false;
 
@@ -59,10 +59,48 @@ function preload(){
         loadImageErrorOverride);
 }
 
+var state, spec;
+var agent, env;
+var rlAgents = [];
+var totalRLAgents = 0;
 function setup() {
 
 	createCanvas(windowWidth, windowHeight);
 	frameRate(30);
+
+	// clear any existing truss 
+	for (var i = 0, length = agents.length; i < length; i++) {
+		agents[i].bot.remove();
+	}
+	edges = [];
+	nodes = [];
+	agents = [];
+
+	// create and initiate a new truss object 
+	tr = new Truss();
+	tr.initiate();
+
+	adjacency = new Adjacency();
+	adjacency.init(edges, nodes, agents, wdth, hght);
+
+
+	// RL Setup 
+	env = new Gridworld(); // create environment
+    state = env.startState();
+    spec = { alpha: 0.01 }
+    for (var i = 0; i < totalRLAgents/2; i++) {
+    	rlAgent = new RL.TDAgent(env, spec);
+    	rlAgents.push(rlAgent);
+    }
+
+    for (var agentIter = 0; agentIter < rlAgents.length; agentIter++) {
+		a = rlAgents[agentIter];
+		a.steps_per_tick = 1;
+		a.sid = -1;
+		a.nsteps_history = [];
+		a.nsteps_counter = 0;
+		a.nflot = 1000;
+	}
 
     updateSprites(false);
 }
@@ -74,8 +112,23 @@ function draw() {
 	background(255);
 
 	var timeout = 30000; 
+	// if (gameWon) {
+	// 	for (var i = 0, length = agents.length; i < length; i++) {
+	// 		agents[i].bot.remove();
+	// 	}
+	// 	edges = [];
+	// 	nodes = [];
+	// 	agents = [];
+
+	// 	// create and initiate a new truss object 
+	// 	tr = new Truss();
+	// 	tr.initiate();
+
+	// 	adjacency = new Adjacency();
+	// 	adjacency.init(edges, nodes, agents, wdth, hght);
+	// }
 	
-	if (frameCount % modo == 0 && frameCount < timeout && !gameWon) {
+	if (frameCount % modo == 0 && frameCount < timeout) {
 		tr.step();
 		//console.log("step");
 	} 
@@ -94,7 +147,7 @@ function draw() {
 	}
 
 	for (var i = 0, length = agents.length; i < length; i++) {
-		agents[i].render();		
+		agents[i].render();
 	}
 
 	ellipse(pointA[0], pointA[1], 10, 10);
@@ -108,37 +161,45 @@ function draw() {
 
 function mousePressed() {
 		
-	// clear any existing truss 
-	for (var i = 0, length = agents.length; i < length; i++) {
-		agents[i].bot.remove();
+	// // clear any existing truss 
+	// for (var i = 0, length = agents.length; i < length; i++) {
+	// 	agents[i].bot.remove();
+	// }
+	// edges = [];
+	// nodes = [];
+	// agents = [];
+
+	// // create and initiate a new truss object 
+	// tr = new Truss();
+	// tr.initiate();
+
+	// adjacency = new Adjacency();
+	// adjacency.init(edges, nodes, agents, wdth, hght);
+
+	// loop();
+	if (modo > 1) {
+		modo--;
 	}
-	edges = [];
-	nodes = [];
-	agents = [];
-
-	// create and initiate a new truss object 
-	tr = new Truss();
-	tr.initiate();
-
-	adjacency = new Adjacency();
-	adjacency.init(edges, nodes, agents, wdth, hght);
-
-	loop();
+	console.log(modo);
 }
 
 
 
 function keyPressed(){
-	adjacency.update(edges, nodes, agents, wdth, hght);
-	for (var i = 0; i < adjacency.adj.length; i++) {
-		for (var j = 0; j < adjacency.adj[0].length; j++) {
-			if (adjacency.adj[i][j] > 0) {
-				console.log(i, j, adjacency.adj[i][j]);
-			}
-		}
+	// adjacency.update(edges, nodes, agents, wdth, hght);
+	// for (var i = 0; i < adjacency.adj.length; i++) {
+	// 	for (var j = 0; j < adjacency.adj[0].length; j++) {
+	// 		if (adjacency.adj[i][j] > 0) {
+	// 			console.log(i, j, adjacency.adj[i][j]);
+	// 		}
+	// 	}
+	// }
+	// // console.log(adjacency.adj);
+	// return false;
+	if (modo < 51) {
+		modo++;
 	}
-	// console.log(adjacency.adj);
-	return false;
+	console.log(modo);
 }
 
 
@@ -245,7 +306,7 @@ function Edge(n0, n1){
 }
 
 
-function Agent(tr, n){
+function Agent(tr, n, rl=0){
 
 	this.bot = createSprite(0, height);
     this.bot.rotateToDirection = true;
@@ -255,10 +316,18 @@ function Agent(tr, n){
     this.bot.addImage("bot3", bot3Img);
     
     this.behaviors = [];
-    this.behaviors.push(new Directional());
-    this.behaviors.push(new WalkDown());
-    this.behaviors.push(new Reinforce());
-    this.behaviors.push(new Traverse());
+    if (rl == 1) {
+    	this.behaviors.push(new TraverseRL());
+    	this.behaviors.push(new WalkDown());
+    	console.log("Added RL");
+  		totalRLAgents++;
+    }
+    else {
+    	this.behaviors.push(new Directional());
+	    // this.behaviors.push(new WalkDown());
+	    this.behaviors.push(new Reinforce());
+	    this.behaviors.push(new Traverse());
+    }
 
     // initiate all bots with Traverse behavior
     this.CurrentBehavior = this.behaviors[0]
@@ -336,8 +405,9 @@ function Truss() {
     	}
 
         for(var i = 0; i < numAgents; i++){
-            this.addAgent(nodes[pointA]);
+            this.addAgent(nodes[pointA], 0);
         }
+        this.addAgent(nodes[pointA], 1);
     }
 
     this.step = function () {
@@ -372,8 +442,8 @@ function Truss() {
     }   
 
     // Add and remove elements on the truss object
-    this.addAgent = function (n){
-        var a = new Agent(this, n);
+    this.addAgent = function (n, rl=0){
+        var a = new Agent(this, n, rl);
         agents.push(a);
     }
 
@@ -641,7 +711,7 @@ Directional.prototype.step = function ( a, tr){
 
 		if (ed){
 			//console.log(ed);
-			a.CurrentBehavior = a.behaviors[1];
+			a.CurrentBehavior = a.behaviors[0];
 			a.PreviousBehavior = a.behaviors[0];
 
 			// stop condition
@@ -839,12 +909,66 @@ Reinforce.prototype.step = function ( a, tr){
 //}
 }
 
-
 // ████████╗██████╗  █████╗ ██╗   ██╗███████╗██████╗ ███████╗███████╗
 // ╚══██╔══╝██╔══██╗██╔══██╗██║   ██║██╔════╝██╔══██╗██╔════╝██╔════╝
 //    ██║   ██████╔╝███████║██║   ██║█████╗  ██████╔╝███████╗█████╗  
 //    ██║   ██╔══██╗██╔══██║╚██╗ ██╔╝██╔══╝  ██╔══██╗╚════██║██╔══╝  
-//    ██║   ██║  ██║██║  ██║ ╚████╔╝ ███████╗██║  ██║███████║███████╗                                                                                  
+//    ██║   ██║  ██║██║  ██║ ╚████╔╝ ███████╗██║  ██║███████║███████╗                                                                                                                                                                   
+
+function TraverseRL (a, tr){
+	Behavior.call(this, a, tr);
+	this.name = "TraverseRL";
+}
+
+// Define the prototype as inherited from Behavior
+TraverseRL.prototype = Object.create(Behavior.prototype);
+// Set the "constructor" property to refer to Behavior
+TraverseRL.prototype.constructor = Behavior;
+
+TraverseRL.prototype.step = function ( aa, tr){
+
+	Behavior.prototype.step.call(this);
+	// find the node that the agent is sitting on
+	aa.previousNode = aa.currentNode;
+	var n = aa.currentNode;
+
+	for (var agentIter = 0; agentIter < rlAgents.length; agentIter++) {
+		// console.log(rlAgents);
+		agent1 = rlAgents[agentIter];
+	    var a = agent1.act(state); // ask agent for an action
+	    var obs = env.sampleNextState(state, a); // run it through environment dynamics
+	    agent1.learn(obs.r); // allow opportunity for the agent to learn
+	    // console.log(agent1.P);
+	    state = obs.ns; // evolve environment to next state
+	    agent1.nsteps_counter += 1;
+	    if(typeof obs.reset_episode !== 'undefined') {
+	      agent1.resetEpisode();
+	      // record the reward achieved
+	      if(agent1.nsteps_history.length >= agent1.nflot) {
+	        agent1.nsteps_history = agent1.nsteps_history.slice(1);
+	      }
+	      agent1.nsteps_history.push(agent1.nsteps_counter);
+	      agent1.nsteps_counter = 0;
+	    }
+	}
+
+	if (rlAgents[0].nsteps_counter % 50 == 0) {
+		avgP = [];
+		for (var i = 0; i < rlAgents[0].P.length; i++) {
+			avgP[i] = rlAgents[0].P[i]
+			for (var agentIter = 1; agentIter < rlAgents.length; agentIter++) {
+		    	avgP[i] += rlAgents[agentIter].P[i];
+		    }
+		    avgP[i] = avgP[i]/rlAgents.length;
+		}
+		for (var agentIter = 0; agentIter < rlAgents.length; agentIter++) {
+			rlAgents[agentIter].P = avgP;
+		}
+	}
+
+	aa.currentNode = nodes[state%100];
+	aa.previousNode = aa.currentNode;
+}
 
 function Traverse (a, tr){
 	Behavior.call(this, a, tr);
@@ -1133,6 +1257,233 @@ function Adjacency() {
 		}
 	}
 }
+
+// Gridworld
+var Gridworld = function(){
+  this.Rarr = null; // reward array
+  this.T = null; // node types 0 = inactive, 1 = active
+  this.s = pointA;
+  this.ns = pointA;
+
+  // console.log("Point A:::")
+  // console.log(pointA)
+
+  this.state = 0;
+  for (i = 0; i < 6; i++) {
+  	if(nodes[this.s].e[i] != undefined) {
+  		this.state += Math.pow(2,i);
+  		}
+  	}
+  // append the node's state
+  this.state = this.state*100 + this.s
+  
+  this.s = this.state;
+  this.ns = this.state;
+
+  this.reset()
+}
+Gridworld.prototype = {
+  reset: function() {
+
+    // hardcoding one gridworld for now
+    this.gw = wdth;
+    this.gh = hght;
+
+    this.struts = 6;
+    // total # of strut possibilities
+    this.sp = Math.pow(2, this.struts);
+    this.gs = this.gh * this.gw * this.sp; // number of states
+    
+    // specify some rewards
+    var Rarr = R.zeros(this.gs);
+    var T = R.zeros(this.gs);
+    
+    // get a reward for any of the possible endings
+    // we don't know a priori how many struts will connect to pointB
+    for (k = 0; k < this.sp; k++) {
+    	possible_final = k * 100 + pointB;
+    	Rarr[possible_final] = 1;
+    }
+
+    // Rarr[pointB] = 1; // end node gets a reward
+
+    this.sA = 0;
+  	for (i = 0; i < 6; i++) {
+  		if(nodes[pointA].e[i] != undefined) {
+  			this.sA += Math.pow(2,i);
+  		}
+  	}
+  	// append the node's state
+  	this.sA = this.sA*100 + pointA
+
+    T[this.sA] = 1; // start node is active
+
+    this.Rarr = Rarr;
+    this.T = T;
+
+    //tr.initiate();
+    //adjacency.resetAdj();
+    // clear any existing truss 
+	for (var i = 0, length = agents.length; i < length; i++) {
+		agents[i].bot.remove();
+	}
+	edges = [];
+	nodes = [];
+	agents = [];
+
+	// create and initiate a new truss object 
+	tr = new Truss();
+	tr.initiate();
+
+	adjacency = new Adjacency();
+	adjacency.init(edges, nodes, agents, wdth, hght);
+
+  },
+  reward: function(s,a,ns) {
+    // reward of being in s, taking action a, and ending up in ns
+    return this.Rarr[s];
+  },
+  nextStateDistribution: function(s,a) {
+    // given (s,a) return distribution over s' (in sparse form)
+
+    if(s%100 === pointB || gameWon) {
+      // agent wins! teleport to start
+      gameWon = false;
+      var ns = this.startState();
+      this.reset();
+    } else {
+      // ordinary space
+	  	for ( var i = 0; i < 6; i++){
+	      if(a === i) {
+
+	      	var ns_ = nodes[s%100].neighbors[i]; // next state is the index of the node at neighbors
+	      	if (ns_ > 63){
+	      		break;
+	      	}
+	      	// transform to new state form
+	      	ns = 0;
+
+  			for (j = 0; j < 6; j++) {
+  				// console.log(nodes[ns_].e[i])
+  				if(nodes[ns_].e[j] != undefined) {
+  					ns += Math.pow(2,j);
+  				}
+  			}
+  			// append the node's state
+  			ns = ns*100 + ns_;
+  			// console.log(ns)
+
+	      	// check if strut exists, if not, add it and switch to move down
+	      	//if (/*adjacency.adj[ns][i] == undefined ||*/ adjacency.adj[s][i] == undefined){
+	      	if ( nodes[s%100].e[i] == undefined){	
+	      		// add strut 
+	      		var ed = tr.addEdge(nodes[s%100], nodes[ns%100]);
+
+	      		// tell nodes.e[] about it
+	      		nodes[s%100].e[i] = ed;
+				nodes[ns%100].e[tr.pairs[i]] = ed;
+
+	      		// unfreeze node
+	      		if (ns%100 != pointA  &&  ns%100 != pointA+1){ // if not start pt
+	      			nodes[ns%100].fixed = false;
+	      		}
+
+	      		// update adjacency matrix
+	      		adjacency.update(edges, nodes, agents, width, height);
+
+	      		
+	    		// switch to walk down
+	      		//agents[0].CurrentBehavior = agents[0].PreviousBehavior;
+	    		//agents[0].PreviousBehavior = agents[0].behaviors[0]; 
+
+	      		break; // exit after the first success (should only be one?)
+	      	}
+	      	// else{
+	      	// 	// console.log(ns, s, nodes[s%100].e[i]);
+	      	// }
+	     
+	      	
+	      }
+		}
+
+
+    }
+    // gridworld is deterministic, so return only a single next state
+    return ns;
+  },
+  sampleNextState: function(s,a) {
+    // gridworld is deterministic, so this is easy
+    var ns = this.nextStateDistribution(s,a);
+    var r = this.Rarr[s]; // observe the raw reward of being in s, taking a, and ending up in ns
+    //console.log(" ");
+    //console.log(r);
+    r -= 0.01 * adjacency.maxDisplacement();
+    r -= 0.001 * edges.length; // every step takes a bit of negative reward times num edges
+    // console.log(r);
+    var out = {'ns':ns, 'r':r};
+    if(s%100 === pointB && ns%100 === (this.startState())%100) {
+	      // episode is over
+	      out.reset_episode = true;
+	      // console.log("over");
+
+	          // clear any existing truss 
+		for (var i = 0, length = agents.length; i < length; i++) {
+			agents[i].bot.remove();
+		}
+		edges = [];
+		nodes = [];
+		agents = [];
+
+		// create and initiate a new truss object 
+		tr = new Truss();
+		tr.initiate();
+
+		adjacency = new Adjacency();
+		adjacency.init(edges, nodes, agents, wdth, hght);
+
+    }
+    return out;
+  },
+  allowedActions: function(s) {
+  	// here we need to check which nodes have (possible) adjacency
+  	//console.log(s);
+    /*var x = this.stox(s);
+    var y = this.stoy(s);*/
+    var as = [];
+
+    if (s%100 > 63){
+    	return as
+    }
+    for (var e = 0; e < 6; e++){
+	    if(nodes[s%100].neighbors[e]) {	as.push(e); }
+	}
+	/*if(x > 0) { as.push(0); }
+    if(y > 0) { as.push(1); }
+    if(y < this.gh-1) { as.push(2); }
+    if(x < this.gw-1) { as.push(3); }*/
+    return as;
+  },
+  randomState: function() { return Math.floor(Math.random()*this.gs); },
+  startState: function() { 
+  	this.state = 0;
+  	for (i = 0; i < 6; i++) {
+  		if(nodes[pointA].e[i] != undefined) {
+  			this.state += Math.pow(2,i);
+  		}
+  	}
+  	// append the node's state
+  	this.state = this.state*100 + pointA
+  	return this.state; 
+  },
+  getNumStates: function() { return this.gs; },
+  getMaxNumActions: function() { return 6; },
+
+  // private functions
+  stox: function(s) { return Math.floor(s/this.gh); },
+  stoy: function(s) { return s % this.gh; },
+  xytos: function(x,y) { return x*this.gh + y; },
+}
+
 
 
 // this function is a workaround provided by user "GoToLoop" on the Processing forum

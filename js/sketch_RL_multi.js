@@ -11,17 +11,10 @@ var numAgents = 1;
 var modo = 1;
 var maxStress = 0.5;
 
-// var width = window.innerWidth;
-// var height = window.innerHeight;
-// var sl = Math.min(width,height) / 15;
-
-var sl = 45; // Default length of 10 units
+var sl = 45; // Default length of 45 units
 var wdth = 5; // 30 triangles on each side
 var hght = 5;
 
-// This should set ground to be 5 from bottom
-// Point A at (10, 5)
-// Point B at (25, 25)
 // Assuming W = H = 30 and (0, 0) is at top left
 var span = sl*5;
 var ground = hght*sl - span;
@@ -30,16 +23,10 @@ var pointB = 4;
 
 var startup = true, gameWon = false, gameLost = false;
 
-//var background, right, left;
 var bot0, bot1, bot2, bot3;
 
 var bot0Img, bot1Img, bot2Img, bot3Img;
-//var button0, button1, button2;
 var CB = 0;
-
-// var ground = (height/2) + span;
-// var pointA = [(width/2) - span, ground];
-// var pointB = [(width/2) + span, (height/2) - span];
 
 // the preload function is prioritized by the p5 library, used for loading images
 // used for icons, background imagery
@@ -59,10 +46,42 @@ function preload(){
         loadImageErrorOverride);
 }
 
+var state, spec;
+var agent, env;
+var rlAgents = [];
+var totalRLAgents = 0;
 function setup() {
 
 	createCanvas(windowWidth, windowHeight);
 	frameRate(30);
+
+	// clear any existing truss 
+	for (var i = 0, length = agents.length; i < length; i++) {
+		agents[i].bot.remove();
+	}
+	edges = [];
+	nodes = [];
+	agents = [];
+
+	// create and initiate a new truss object 
+	tr = new Truss();
+	tr.initiate();
+
+	adjacency = new Adjacency();
+	adjacency.init(edges, nodes, agents, wdth, hght);
+
+
+	// RL Setup 
+	env = new Gridworld(); // create environment
+    state = env.startState();
+    spec = { alpha: 0.01 }
+    for (var i = 0; i < totalRLAgents; i++) {
+    	rlAgent = new RL.TDAgent(env, spec);
+    	rlAgents.push(rlAgent);
+    }
+    // agent = new RL.TDAgent(env, spec);
+    // agent1 = new RL.TDAgent(env, spec);
+    // agent2 = new RL.TDAgent(env, spec);
 
     updateSprites(false);
 }
@@ -75,14 +94,15 @@ function draw() {
 
 	var timeout = 30000; 
 	
-	if (frameCount % modo == 0 && frameCount < timeout && !gameWon) {
+	// every N frames
+	if (frameCount % modo == 0 /*&& frameCount < timeout*/) {
 		tr.step();
-		//console.log("step");
 	} 
 
-	if (frameCount < timeout){
+	// every frame
+	//if (frameCount < timeout){
 		tr.move();
-	}
+	//}
 
 	// render the edges, nodes and agents, in order of render depth
 	for (var i = 0, length = edges.length; i < length; i++) {
@@ -97,8 +117,8 @@ function draw() {
 		agents[i].render();		
 	}
 
-	ellipse(pointA[0], pointA[1], 10, 10);
-	ellipse(pointB[0], pointB[1], 10, 10);
+	ellipse(nodes[pointA].x, nodes[pointA].y, 10, 10);
+	ellipse(nodes[pointB].x, nodes[pointB].y, 10, 10);
 
 	// draw the sprite objects last, so they're on top of edges and nodes
 	drawSprites();
@@ -151,6 +171,7 @@ function Node(id, xPos, yPos) {
 	this.stoy = yPos;
 
     this.isOccupied = false;
+    this.lastIndex = 0;
 
     this.e = [];
     this.neighbors = [];
@@ -179,7 +200,7 @@ function Node(id, xPos, yPos) {
         this.x += this.ux * dt;
         this.y += this.uy * dt;
 
-	}
+    }
 
 	this.render = function() {
 		stroke(0);
@@ -233,7 +254,7 @@ function Edge(n0, n1){
 	    
 	    var dist = Math.sqrt((dx*dx)+(dy*dy));
 
-    	var color = (sl - dist) * 150;
+    	var color = (sl - dist) * 350;
     	if (color > 0) {
     		stroke((color), 0, 0);
     	} else {
@@ -245,8 +266,8 @@ function Edge(n0, n1){
 }
 
 
-function Agent(tr, n){
-
+function Agent(tr, n, rl = 0){
+	// var rl = typeof rl !== 'undefined' ?  b : 1;
 	this.bot = createSprite(0, height);
     this.bot.rotateToDirection = true;
     this.bot.addImage("bot0", bot0Img);
@@ -255,20 +276,37 @@ function Agent(tr, n){
     this.bot.addImage("bot3", bot3Img);
     
     this.behaviors = [];
-    this.behaviors.push(new Directional());
-    this.behaviors.push(new WalkDown());
-    this.behaviors.push(new Reinforce());
-    this.behaviors.push(new Traverse());
+    //this.behaviors.push(new Directional());
+    //this.behaviors.push(new Reinforce());
+    // rl = 0;
+    if (rl == 1) {
+    	this.behaviors.push(new TraverseRL());
+    	this.behaviors.push(new WalkDown());
+  		totalRLAgents++;
+    }
+    else {
+    	this.behaviors.push(new Directional());
+	    // this.behaviors.push(new WalkDown());
+	    // this.behaviors.push(new Reinforce());
+	    this.behaviors.push(new Traverse());
+    }
 
-    // initiate all bots with Traverse behavior
-    this.CurrentBehavior = this.behaviors[0]
-    this.PreviousBehavior = this.behaviors[0]
+    // use the traverse behavior to execute learning actions
+    this.CurrentBehavior = this.behaviors[0];
+    this.PreviousBehavior = this.behaviors[0];
 
-    this.currentNode = nodes[pointA];
-    this.previousNode = nodes[pointA];
-    //this.n = n;
+    //if (Math.random() > 0.5){
+    //	this.CurrentBehavior = this.behaviors[2];
+	//    this.PreviousBehavior = this.behaviors[2];
+    //}
+
+    this.currentNode = n;
+    this.previousNode = n;
 
     this.update = function(tr){
+
+
+
 		if (this.CurrentBehavior.name == "Directional"){
     		this.bot.changeImage("bot0");
     	}
@@ -281,8 +319,11 @@ function Agent(tr, n){
     	if (this.CurrentBehavior.name == "Traverse"){
     		this.bot.changeImage("bot3");
     	}
+    	if (this.CurrentBehavior.name == "TraverseRL"){
+    		this.bot.changeImage("bot3");
+    	}
         this.CurrentBehavior.step(this, tr);
-        this.rot = Math.atan2(this.currentNode.y - this.previousNode.y, this.currentNode.x - this.previousNode.x) * 180 / Math.PI + 90;
+        //this.rot = Math.atan2(this.currentNode.y - this.previousNode.y, this.currentNode.x - this.previousNode.x) * 180 / Math.PI + 90;
     }
 
     this.render = function() {
@@ -291,6 +332,61 @@ function Agent(tr, n){
     	//console.log(this.bot.rotation);
 
     	this.bot.rotation = this.rot;
+	}
+
+	this.allowedActions = function() {
+	  	s = this.currentNode.id;
+	    var as = [];
+
+	    if (s%100 > 24){
+	    	return as
+	    }
+	    for (var e = 0; e < 6; e++){
+		    if(nodes[s%100].neighbors[e]) {	as.push(e); }
+		}
+	    return as;
+  	}
+
+	this.tryMove = function(n, weights, walkdown = false) {
+
+		// TRY TO MOVE
+		for(var i = 0; i < 6; i++) {
+			if(weights[i] == 0) continue;
+
+			// if the node doesn't have that edge, the probability is 0
+			if(!n.e[i]){
+				weights[i] = 0;
+				continue;
+			}
+
+			// if the edge is under too much stress, the probability is 0
+			var ee = n.e[i];
+
+			// if the node is occupied, the probability is 0
+			var N0 = ee.n0;
+			var N1 = ee.n1;
+
+			var nextNode = N0;
+			if (nextNode.id == n.id) nextNode = N1;
+
+			if (nextNode.isOccupied){
+				weights[i] = 0;
+				continue;
+			}
+			if (walkdown == true) {
+				var nX = n.x + tr.dirs[i][0];
+				var nY = n.y + tr.dirs[i][1];
+
+				var preDist = sqrt((pointA[0] - n.x)*(pointA[0] - n.x) + (pointA[1] - n.y)*(pointA[1] - n.y))
+				var newDist = sqrt((pointA[0] - nX)*(pointA[0] - nX) + (pointA[1] - nY)*(pointA[1] - nY))
+
+				// if nextNode is closer to target, double probability
+				if (newDist < preDist){
+					weights[i] = weights[i] * 20;
+				}
+			}
+		}
+		return weights;
 	}
 }
 
@@ -336,8 +432,9 @@ function Truss() {
     	}
 
         for(var i = 0; i < numAgents; i++){
-            this.addAgent(nodes[pointA]);
+            this.addAgent(nodes[pointA], 0);
         }
+        // this.addAgent(nodes[pointA], 1);
     }
 
     this.step = function () {
@@ -350,7 +447,7 @@ function Truss() {
 
 		var damping = 0.95;
 		var g = 1.0;
-		var dt = 0.1;
+		var dt = 0.3;
 
 		for (var j = 0; j < 1; j++){
 
@@ -360,7 +457,7 @@ function Truss() {
 			}
 
 			for (var i = 0, length = edges.length; i < length; i++) {
-			    //console.log("move edge");
+				//console.log("move edge");
 				edges[i].applySpringForce();
 				
 			}
@@ -372,8 +469,8 @@ function Truss() {
     }   
 
     // Add and remove elements on the truss object
-    this.addAgent = function (n){
-        var a = new Agent(this, n);
+    this.addAgent = function (n, rl = 0){
+        var a = new Agent(this, n, rl);
         agents.push(a);
     }
 
@@ -425,7 +522,6 @@ function Truss() {
 
 	this.removeEdge = function(id) {
 		
-		console.log(edges[id].n0.e);
 		for (var i = 0; i < 6; i++){
 			if(edges[id].n0.e[i] != undefined){
 				if(edges[id].n0.e[i].n1 == edges[id].n1){
@@ -496,6 +592,8 @@ Behavior.prototype.getRandom = function (weights)  {
 	return strutIndex;
 }
 
+//////////////////////////////////////
+
 
 
 // ██████╗ ██╗██████╗ ███████╗ ██████╗████████╗██╗ ██████╗ ███╗   ██╗ █████╗ ██╗     
@@ -527,36 +625,16 @@ Directional.prototype.step = function ( a, tr){
 	var weights =  [20, 20, 20, 20, 10, 10];
 
 	// TRY TO MOVE
-	for(var i = 0; i < 6; i++) {
-		if(weights[i] == 0) continue;
+	weights = a.tryMove(n, weights);
 
-		if(!nodes[n.neighbors[i]]) {
-			weights[i] = 0;
-			//console.log("didnt have strut");
-			continue;
-		}
-		// if the node doesn't have that edge, the probability is 0
-		/*if(!n.e[i]){
-			weights[i] = 0;
-			console.log("here");
-			continue;
-		}*/
-
-		// if the edge is under too much stress, the probability is 0
-		/*var ee = n.e[i];
-
-		// if the node is occupied, the probability is 0
-		var N0 = ee.n0;
-		var N1 = ee.n1;
-
-		var nextNode = N0;
-		if (nextNode.id == n.id) nextNode = N1;
-
-		if (nextNode.isOccupied){
-			weights[i] = 0;
-			continue;
-		}*/
+	var aas = a.allowedActions();
+	var allowedWeights = [0, 0, 0, 0, 0, 0];
+	for (var aasID = 0; aasID < aas.length; aasID++) {
+		console.log((aas[aasID])%aas.length);
+		allowedWeights[(aas[aasID]+0)%aas.length] = weights[(aas[aasID]+0)%aas.length];
 	}
+	weights = allowedWeights;
+
 
 	// if there is only one move choice, switch to build instead
 	var choices = 0;
@@ -569,13 +647,11 @@ Directional.prototype.step = function ( a, tr){
 		}
 	}
 
-	//console.log(choices);
-
 	var strutIndex = this.getRandom(weights);
 
 	if (strutIndex < 6){
 		var ee = n.e[strutIndex];
-		//console.log(ee);
+
 		if (ee != null){
 			var N0 = ee.n0;
 			var N1 = ee.n1;
@@ -590,7 +666,7 @@ Directional.prototype.step = function ( a, tr){
 			return true;
 		}
 		else{
-			//console.log("fail");
+			console.log("fail");
 		}
 	}
 
@@ -599,22 +675,19 @@ Directional.prototype.step = function ( a, tr){
 
 	for(var i = 0; i < 6; i++) {
 		if(weights[i] == 0) continue;
-		
-		if(!nodes[n.neighbors[i]]){
-			weights[i] = 0;
-			continue;
-		} 
 
-		if(n.e[i]){ // if strut already exists
-			weights[i] = 0;
-		}
+		var inWorkSpace = tr.containsNode(n, i);
 
-		//console.log(n);
-        var nX = nodes[n.neighbors[i]].stox;
-		var nY = nodes[n.neighbors[i]].stoy;
+        if(!inWorkSpace){
+          weights[i] = 0;
+          continue;
+        }
 
-		var preDist = sqrt((nodes[pointB].stox - n.stox)*(nodes[pointB].stox - n.stox) + (nodes[pointB].stoy - n.stoy)*(nodes[pointB].stoy - n.stoy))
-		var newDist = sqrt((nodes[pointB].stox - nX)*(nodes[pointB].stox - nX) + (nodes[pointB].stoy - nY)*(nodes[pointB].stoy - nY))
+        var nX = n.x + tr.dirs[i][0];
+		var nY = n.y + tr.dirs[i][1];
+
+		var preDist = sqrt((pointB[0] - n.x)*(pointB[0] - n.x) + (pointB[1] - n.y)*(pointB[1] - n.y))
+		var newDist = sqrt((pointB[0] - nX)*(pointB[0] - nX) + (pointB[1] - nY)*(pointB[1] - nY))
 
 		// if nextNode is closer to target, increase probability
 		if (newDist < preDist){
@@ -625,146 +698,19 @@ Directional.prototype.step = function ( a, tr){
 	strutIndex = this.getRandom(weights);
 
 	if (strutIndex < 6){
-		var newID = n.neighbors[strutIndex];
-		//console.log(newID);
-		var ed = tr.addEdge(n, nodes[newID]);
-		if (newID != pointA && newID != pointA+1 && newID != pointB ){
-			nodes[newID].fixed = false;
-		}
-		
-		//console.log(ed);
+		var ee = tr.extendNode(n, strutIndex);
 
-		//if (ed == null) return null;
-
-		n.e[strutIndex] = ed;
-		nodes[n.neighbors[strutIndex]].e[tr.pairs[strutIndex]] = ed;
-
-		if (ed){
-			//console.log(ed);
-			a.CurrentBehavior = a.behaviors[1];
-			a.PreviousBehavior = a.behaviors[0];
-
-			// stop condition
-			if ( newID == pointB){
-				gameWon = true;
-			}
+		if (ee == true){
+			a.CurrentBehavior = a.behaviors[0];
+			a.PreviousBehavior = a.behaviors[1];
 		}
 		else{
 			console.log("fail");
-			//a.CurrentBehavior = a.behaviors[1];
-			///a.PreviousBehavior = a.behaviors[0];
 		}
 	}
 
 	return false;
 //}
-}
-
-
-//  ██╗    ██╗ █████╗ ██╗     ██╗  ██╗    ██████╗  ██████╗ ██╗    ██╗███╗   ██╗
-//  ██║    ██║██╔══██╗██║     ██║ ██╔╝    ██╔══██╗██╔═══██╗██║    ██║████╗  ██║
-//  ██║ █╗ ██║███████║██║     █████╔╝     ██║  ██║██║   ██║██║ █╗ ██║██╔██╗ ██║
-//  ██║███╗██║██╔══██║██║     ██╔═██╗     ██║  ██║██║   ██║██║███╗██║██║╚██╗██║
-//  ╚███╔███╔╝██║  ██║███████╗██║  ██╗    ██████╔╝╚██████╔╝╚███╔███╔╝██║ ╚████║
-//   ╚══╝╚══╝ ╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝    ╚═════╝  ╚═════╝  ╚══╝╚══╝ ╚═╝  ╚═══╝
-
-function WalkDown (a, tr){
-
-	Behavior.call(this, a, tr);
-	this.name = "WalkDown";
-
-}
-
-// Define the prototype as inherited from Behavior
-WalkDown.prototype = Object.create(Behavior.prototype);
-// Set the "constructor" property to refer to Behavior
-WalkDown.prototype.constructor = Behavior;
-
-WalkDown.prototype.step = function ( a, tr){
-
-	Behavior.prototype.step.call(this);
-	// find the node that the agent is sitting on
-	a.previousNode = a.currentNode;
-	var n = a.currentNode;
-
-	var weights =  [10, 10, 10, 10, 40, 40];
-
-	// check the height of that node
-	if ( n.id == pointA){
-		//console.log(ground);
-		a.CurrentBehavior = a.behaviors[0];
-		a.PreviousBehavior = a.behaviors[1];
-		return true;
-	}
-
-	
-
-	// TRY TO MOVE
-	for(var i = 0; i < 6; i++) {
-
-		if(weights[i] == 0) continue;
-		if(!nodes[n.neighbors[i]]) continue;
-
-		// if the node doesn't have that edge, the probability is 0
-		if(!n.e[i]){
-			weights[i] = 0;
-			continue;
-		}
-
-		// if the node is occupied, the probability is 0
-		var ee = n.e[i];
-
-		var N0 = ee.n0;
-		var N1 = ee.n1;
-
-		var nextNode = N0;
-		if (nextNode.id == n.id) nextNode = N1;
-
-		if (nextNode.isOccupied){
-			weights[i] = 0;
-			continue;
-		}
-
-		if(weights[i] == 0) continue;
-
-        var nX = nodes[n.neighbors[i]].stox;
-		var nY = nodes[n.neighbors[i]].stoy;
-
-		var preDist = sqrt((nodes[pointA].stox - n.stox)*(nodes[pointA].stox - n.stox) + (nodes[pointA].stoy - n.y)*(nodes[pointA].stoy - n.stoy))
-		var newDist = sqrt((nodes[pointA].stox - nX)*(nodes[pointA].stox - nX) + (nodes[pointA].stoy - nY)*(nodes[pointA].stoy - nY))
-
-		// if nextNode is closer to target, increase probability
-		if (newDist < preDist){
-			weights[i] = weights[i] * 20;
-		}
-	}
-
-	var strutIndex = this.getRandom(weights);
-
-	if (strutIndex < 6){
-		var ee = n.e[strutIndex];
-
-		if (ee != null){
-			var N0 = ee.n0;
-			var N1 = ee.n1;
-
-			var nextNode = N0;
-			if (nextNode.id == n.id) nextNode = N1;
-
-			//a.previousNode = a.currentNode;
-			a.currentNode = nextNode;
-			nextNode.isOccupied = true;
-			n.isOccupied = false;
-			return true;
-		}
-		else{
-			console.log("fail");
-		}
-	}
-
-	//console.log("fail");
-	return false;
-
 }
 
 // ██████╗ ███████╗██╗███╗   ██╗███████╗ ██████╗ ██████╗  ██████╗███████╗
@@ -800,31 +746,23 @@ Reinforce.prototype.step = function ( a, tr){
 			continue;
 		}
 
-        if(weights[i] == 0) continue;
-        if(!nodes[n.neighbors[i]]) continue;
-
-        var nX = nodes[n.neighbors[i]].stox;
-		var nY = nodes[n.neighbors[i]].stoy;
+        var nX = n.x + tr.dirs[i][0];
+		var nY = n.y + tr.dirs[i][1];
 
 		var n1 = undefined; 
 
 		for (var j = 0, length = nodes.length; j < length; j++){
-			if ((Math.abs(nodes[j].stox - nX) < sl/2) && (Math.abs(nodes[j].stoy - nY) < sl/2)){
+			if ((Math.abs(nodes[j].x - nX) < sl/2) && (Math.abs(nodes[j].y - nY) < sl/2)){
 				n1 = nodes[j];
 			}
 		}
 
 		if (n1 !== undefined){
-			var ed = tr.addEdge(n, nodes[n.neighbors[i]]);
+			var ee = tr.extendNode(n, i);
 
-			if (ed == null) return null;
-
-			n.e[i] = ed;
-			n1.e[tr.pairs[i]] = ed;
-
-			if (ed != null){
-				a.PreviousBehavior = a.behaviors[2];
+			if (ee != null){
 				a.CurrentBehavior = a.behaviors[1];
+				a.PreviousBehavior = a.behaviors[2];
 			}
 			else{
 				console.log("fail");
@@ -832,134 +770,24 @@ Reinforce.prototype.step = function ( a, tr){
 		}
 
 	}
-	//a.CurrentBehavior = a.behaviors[1];
-	//a.PreviousBehavior = a.behaviors[2];
 
-	return false;
-//}
-}
-
-
-// ████████╗██████╗  █████╗ ██╗   ██╗███████╗██████╗ ███████╗███████╗
-// ╚══██╔══╝██╔══██╗██╔══██╗██║   ██║██╔════╝██╔══██╗██╔════╝██╔════╝
-//    ██║   ██████╔╝███████║██║   ██║█████╗  ██████╔╝███████╗█████╗  
-//    ██║   ██╔══██╗██╔══██║╚██╗ ██╔╝██╔══╝  ██╔══██╗╚════██║██╔══╝  
-//    ██║   ██║  ██║██║  ██║ ╚████╔╝ ███████╗██║  ██║███████║███████╗                                                                                  
-
-function Traverse (a, tr){
-	Behavior.call(this, a, tr);
-	this.name = "Traverse";
-}
-
-// Define the prototype as inherited from Behavior
-Traverse.prototype = Object.create(Behavior.prototype);
-// Set the "constructor" property to refer to Behavior
-Traverse.prototype.constructor = Behavior;
-
-Traverse.prototype.step = function ( a, tr){
-
-	Behavior.prototype.step.call(this);
-	// find the node that the agent is sitting on
-	a.previousNode = a.currentNode;
-	var n = a.currentNode;
-
-	var eps1 = 0.05;
-	var StoreWeights = [20, 20, 20, 20, 10, 10];
-	var weights =  [20, 20, 20, 20, 10, 10];
-
-	// TRY TO MOVE
-	for(var i = 0; i < 6; i++) {
-		if(weights[i] == 0) continue;
-
-		/*if(!nodes[n.neighbors[i]]) {
-			weights[i] = 0;
-			console.log("didnt have strut");
-			continue;
-		}*/
-		// if the node doesn't have that edge, the probability is 0
-		if(!n.e[i]){
-			weights[i] = 0;
-			continue;
-		}
-
-		// if the edge is under too much stress, the probability is 0
-		var ee = n.e[i];
-
-		// if the node is occupied, the probability is 0
-		var N0 = ee.n0;
-		var N1 = ee.n1;
-
-		var nextNode = N0;
-		if (nextNode.id == n.id) nextNode = N1;
-
-		if (nextNode.isOccupied){
-			weights[i] = 0;
-			continue;
-		}
-	}
-
-	// if there is only one move choice, switch to build instead
-	var choices = 0;
-	for(var i = 0; i < 6; i++) {
-		if (weights[i] != 0) choices++;
-	}
-	if (choices < 2){
-		for(var i = 0; i < 6; i++) {
-			weights[i] = 0;
-		}
-	}
 	
-	console.log("choices", choices);
-
-	// Determine angle between target and current agent's location
-	var dy = -1*(nodes[pointB].stoy - n.stoy);
-	var dx = nodes[pointB].stox - n.stox;
-	var angle = Math.atan(dy/dx)*(180/Math.PI);
-	// console.log(angle);
-
-	// Set strut angles for comparison
-	var strut_angles = [0, 60, 120, 180, 240, 300];
-
-	if (Math.random() < eps1){
-		strutIndex = this.getRandom(weights)
-    }
-    else{
-    	var nearest = Math.floor(angle/60);
-    	var near_left = (nearest)%6;
-    	var near_right = (nearest + 1)%6;
-    	// console.log("the struts are:")
-    	// console.log(near_left);
-    	// console.log(near_right);
-
-    	if (weights[near_left] == 0 || weights[near_right] == 0){
-    		strutIndex = this.getRandom(weights);
-    	}
-    	else{
-    		// Assign probabilities proportional to the difference
-    		// between the other option and the strut
-    		prob_left = Math.abs(angle-strut_angles[near_right]);
-    		prob_right = Math.abs(angle-strut_angles[near_left]);
-    		normalize = prob_left + prob_right;
-    		prob_left = float(prob_left)/normalize;
-    		prob_right = float(prob_right)/normalize;
-
-    		if (Math.random() < prob_left){
-    			strutIndex = near_left;
-    		}
-    		else{
-    			strutIndex = near_right;
-    		}
-    		console.log("Strut Index::::::::::::")
-    		console.log(strutIndex);
-    	}
-    }
+	// TRY TO MOVE
+	weights = a.tryMove(n, weights);
+	var aas = a.allowedActions();
+	var allowedWeights = [0, 0, 0, 0, 0, 0];
+	for (var aasID = 0; aasID < aas.length; aasID++) {
+		console.log((aas[aasID])%aas.length);
+		allowedWeights[(aas[aasID]+0)%aas.length] = weights[(aas[aasID]+0)%aas.length];
+	}
+	weights = allowedWeights;
 
 
 	var strutIndex = this.getRandom(weights);
 
 	if (strutIndex < 6){
 		var ee = n.e[strutIndex];
-		//console.log(ee);
+
 		if (ee != null){
 			var N0 = ee.n0;
 			var N1 = ee.n1;
@@ -978,19 +806,254 @@ Traverse.prototype.step = function ( a, tr){
 		}
 	}
 
-	if (Math.random() > 0.95){
-		console.log("about to switch to reinforce")
-    	a.CurrentBehavior = a.behaviors[2];
-	  	a.PreviousBehavior = a.behaviors[3];
-    }
-    else{
-    	console.log("about to switch to directional")
-		// Switch to Directional behavior
-		a.CurrentBehavior = a.behaviors[0]
-		a.PreviousBehavior = a.behaviors[3]	
-    }
 
+
+	return false;
+//}
+}
+
+
+
+
+//  ██╗    ██╗ █████╗ ██╗     ██╗  ██╗    ██████╗  ██████╗ ██╗    ██╗███╗   ██╗
+//  ██║    ██║██╔══██╗██║     ██║ ██╔╝    ██╔══██╗██╔═══██╗██║    ██║████╗  ██║
+//  ██║ █╗ ██║███████║██║     █████╔╝     ██║  ██║██║   ██║██║ █╗ ██║██╔██╗ ██║
+//  ██║███╗██║██╔══██║██║     ██╔═██╗     ██║  ██║██║   ██║██║███╗██║██║╚██╗██║
+//  ╚███╔███╔╝██║  ██║███████╗██║  ██╗    ██████╔╝╚██████╔╝╚███╔███╔╝██║ ╚████║
+//   ╚══╝╚══╝ ╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝    ╚═════╝  ╚═════╝  ╚══╝╚══╝ ╚═╝  ╚═══╝
+
+function WalkDown (a, tr){
+
+	Behavior.call(this, a, tr);
+	this.name = "WalkDown";
+
+}
+
+// Define the prototype as inherited from Behavior
+WalkDown.prototype = Object.create(Behavior.prototype);
+// Set the "constructor" property to refer to Behavior
+WalkDown.prototype.constructor = Behavior;
+
+WalkDown.prototype.step = function ( a, tr){
+
+	Behavior.prototype.step.call(this);
+	// find the node that the agent is sitting on
 	
+	var n = a.currentNode;
+	a.previousNode = a.currentNode;
+
+	var weights =  [30, 40, 40, 30, 30, 30];
+
+	// check if the node has found the start 
+	if ( n.id == pointA){
+		//console.log(ground);
+		a.CurrentBehavior = a.PreviousBehavior;
+		a.PreviousBehavior = a.behaviors[1];
+		return true;
+	}
+
+	var strutIndex = 6;
+
+	// TRY TO MOVE
+	for(var i = 0; i < 6; i++) {
+
+		if(weights[i] == 0) continue;
+
+		if(a.previousNode.id == n.neighbors[i]){
+			//weights[i] = 0;
+			continue;
+		}
+		// if the node doesn't have that edge, the probability is 0
+		if(!n.e[i]){
+			weights[i] = 0;
+			continue;
+		}
+
+		// if the node is occupied, the probability is 0
+		var ee = n.e[i];
+
+		var N0 = ee.n0;
+		var N1 = ee.n1;
+
+		var nextNode = N0;
+		if (nextNode.id == n.id) nextNode = N1;
+
+		/*if (nextNode.isOccupied){
+			weights[i] = 0;
+			continue;
+		}*/
+
+		var nX = n.stox + tr.dirs[i][0];
+		var nY = n.stoy + tr.dirs[i][1];
+
+		pAx = nodes[pointA].stox;
+		pAy = nodes[pointA].stoy;
+
+		var preDist = sqrt((pAx - n.stox)*(pAx - n.stox) + (pAy - n.stoy)*(pAy - n.stoy));
+		var newDist = sqrt((pAx - nX)*(pAx - nX) + (pAy - nY)*(pAy - nY));
+
+		// if nextNode is closer to target, double probability
+		if (newDist < preDist){
+			weights[i] = weights[i] * 20;
+			//strutIndex = i;
+		}
+	}
+
+	//console.log(weights);
+	var strutIndex = this.getRandom(weights);
+
+	if (strutIndex < 6){
+		var ee = n.e[strutIndex];
+
+		if (ee != null){
+			var N0 = ee.n0;
+			var N1 = ee.n1;
+
+			var nextNode = N0;
+			if (nextNode.id == n.id) nextNode = N1;
+
+			//console.log(n.lastIndex);
+
+			//a.previousNode = a.currentNode;
+			a.currentNode = nextNode;
+			nextNode.isOccupied = true;
+			n.isOccupied = false;
+			n.lastIndex = strutIndex;
+			return true;
+		}
+		else{
+			console.log("fail");
+		}
+	}
+
+	//console.log("fail");
+	return false;
+
+}
+
+
+ var steps_per_tick = 1;
+var sid = -1;
+var nsteps_history = [];
+var nsteps_counter = 0;
+var nflot = 1000;
+
+
+// ████████╗██████╗  █████╗ ██╗   ██╗███████╗██████╗ ███████╗███████╗
+// ╚══██╔══╝██╔══██╗██╔══██╗██║   ██║██╔════╝██╔══██╗██╔════╝██╔════╝
+//    ██║   ██████╔╝███████║██║   ██║█████╗  ██████╔╝███████╗█████╗  
+//    ██║   ██╔══██╗██╔══██║╚██╗ ██╔╝██╔══╝  ██╔══██╗╚════██║██╔══╝  
+//    ██║   ██║  ██║██║  ██║ ╚████╔╝ ███████╗██║  ██║███████║███████╗                                                                                  
+
+function TraverseRL (a, tr){
+	Behavior.call(this, a, tr);
+	this.name = "TraverseRL";
+}
+
+// Define the prototype as inherited from Behavior
+TraverseRL.prototype = Object.create(Behavior.prototype);
+// Set the "constructor" property to refer to Behavior
+TraverseRL.prototype.constructor = Behavior;
+
+TraverseRL.prototype.step = function ( aa, tr){
+
+	Behavior.prototype.step.call(this);
+	// find the node that the agent is sitting on
+	aa.previousNode = aa.currentNode;
+	var n = aa.currentNode;
+
+	for (var agentIter = 0; agentIter < rlAgents.length; agentIter++) {
+		// console.log(rlAgents);
+		agent1 = rlAgents[agentIter];
+	    var a = agent1.act(state); // ask agent for an action
+	    var obs = env.sampleNextState(state, a); // run it through environment dynamics
+	    agent1.learn(obs.r); // allow opportunity for the agent to learn
+	    state = obs.ns; // evolve environment to next state
+	    nsteps_counter += 1;
+	    if(typeof obs.reset_episode !== 'undefined') {
+	      agent1.resetEpisode();
+	      // record the reward achieved
+	      if(nsteps_history.length >= nflot) {
+	        nsteps_history = nsteps_history.slice(1);
+	      }
+	      nsteps_history.push(nsteps_counter);
+	      nsteps_counter = 0;
+	    }
+	}
+
+	aa.currentNode = nodes[state%100];
+	aa.previousNode = aa.currentNode;
+}
+
+function Traverse (a, tr){
+	Behavior.call(this, a, tr);
+	this.name = "Traverse";
+}
+
+// Define the prototype as inherited from Behavior
+Traverse.prototype = Object.create(Behavior.prototype);
+// Set the "constructor" property to refer to Behavior
+Traverse.prototype.constructor = Behavior;
+
+Traverse.prototype.step = function ( a, tr){
+
+	Behavior.prototype.step.call(this);
+	// find the node that the agent is sitting on
+	a.previousNode = a.currentNode;
+	var n = a.currentNode;
+
+	var StoreWeights = [20, 20, 20, 20, 10, 10];
+	var weights =  [20, 20, 20, 20, 10, 10];
+
+	// TRY TO MOVE
+	a.tryMove(n, weights);
+
+	var aas = a.allowedActions();
+	var allowedWeights = [0, 0, 0, 0, 0, 0];
+	for (var aasID = 0; aasID < aas.length; aasID++) {
+		console.log((aas[aasID])%aas.length);
+		allowedWeights[(aas[aasID]+0)%aas.length] = weights[(aas[aasID]+0)%aas.length];
+	}
+	weights = allowedWeights;
+
+	// if there is only one move choice, switch to build instead
+	var choices = 0;
+	for(var i = 0; i < 6; i++) {
+		if (weights[i] != 0) choices++;
+	}
+	if (choices < 2){
+		for(var i = 0; i < 6; i++) {
+			weights[i] = 0;
+		}
+	}
+
+	console.log("BOOFTA");
+	console.log(a.allowedActions());
+	var strutIndex = this.getRandom(weights);
+
+	if (strutIndex < 6){
+		var ee = n.e[strutIndex];
+
+		if (ee != null){
+			var N0 = ee.n0;
+			var N1 = ee.n1;
+
+			var nextNode = N0;
+			if (nextNode.id == n.id) nextNode = N1;
+
+			a.previousNode = a.currentNode;
+			a.currentNode = nextNode;
+			nextNode.isOccupied = true;
+			n.isOccupied = false;
+			a.CurrentBehavior = a.behaviors[1];
+			a.PreviousBehavior = a.behaviors[0];
+			return true;
+		}
+		else{
+			console.log("fail");
+		}
+	}
+
 	return false;
 //}
 }
@@ -1051,6 +1114,7 @@ function Adjacency() {
 			edge = this.edges[e];
 			n0 = edge.n0;
 			n0_id = int(n0.stox/sl) + int(n0.stoy/sl)*this.w;
+			// console.log(n0_id);
 			n1 = edge.n1;
 			/*
 			  4   5
@@ -1080,6 +1144,7 @@ function Adjacency() {
 			}
 			edge.updateStress();
 			//console.log(n0_id);
+			// console.log(this.adj);
 			this.adj[n0_id][n1_id] = edge.stress;
 			if (edge.stress > this.max) {
 				this.max = edge.stress;
@@ -1119,12 +1184,6 @@ function Adjacency() {
 
 	this.resetAdj = function() {
 		this.adj = [];
-		// for (i = 0; i < this.h+1; i++) {
-		// 	this.adj.push([]);
-		// 	for (j = 0; j < this.w+1; j++) {
-		// 		this.adj[i].push(0);
-		// 	}
-		// }
 		for (i = 0; i < this.h*this.w+1; i++) {
 			this.adj.push([]);
 			for (j = 0; j < 6; j++) {
@@ -1133,6 +1192,235 @@ function Adjacency() {
 		}
 	}
 }
+
+
+// Gridworld
+var Gridworld = function(){
+  this.Rarr = null; // reward array
+  this.T = null; // node types 0 = inactive, 1 = active
+  this.s = pointA;
+  this.ns = pointA;
+
+  // console.log("Point A:::")
+  // console.log(pointA)
+
+  this.state = 0;
+  for (i = 0; i < 6; i++) {
+  	if(nodes[this.s].e[i] != undefined) {
+  		this.state += Math.pow(2,i);
+  		}
+  	}
+  // append the node's state
+  this.state = this.state*100 + this.s
+  
+  this.s = this.state;
+  this.ns = this.state;
+
+  this.reset()
+}
+Gridworld.prototype = {
+  reset: function() {
+
+    // hardcoding one gridworld for now
+    this.gw = wdth;
+    this.gh = hght;
+
+    this.struts = 6;
+    // total # of strut possibilities
+    this.sp = Math.pow(2, this.struts);
+    this.gs = this.gh * this.gw * this.sp; // number of states
+    
+    // specify some rewards
+    var Rarr = R.zeros(this.gs);
+    var T = R.zeros(this.gs);
+    
+    // get a reward for any of the possible endings
+    // we don't know a priori how many struts will connect to pointB
+    for (k = 0; k < this.sp; k++) {
+    	possible_final = k * 100 + pointB;
+    	Rarr[possible_final] = 1;
+    }
+
+    // Rarr[pointB] = 1; // end node gets a reward
+
+    this.sA = 0;
+  	for (i = 0; i < 6; i++) {
+  		if(nodes[pointA].e[i] != undefined) {
+  			this.sA += Math.pow(2,i);
+  		}
+  	}
+  	// append the node's state
+  	this.sA = this.sA*100 + pointA
+
+    T[this.sA] = 1; // start node is active
+
+    this.Rarr = Rarr;
+    this.T = T;
+
+    //tr.initiate();
+    //adjacency.resetAdj();
+    // clear any existing truss 
+	for (var i = 0, length = agents.length; i < length; i++) {
+		agents[i].bot.remove();
+	}
+	edges = [];
+	nodes = [];
+	agents = [];
+
+	// create and initiate a new truss object 
+	tr = new Truss();
+	tr.initiate();
+
+	adjacency = new Adjacency();
+	adjacency.init(edges, nodes, agents, wdth, hght);
+
+  },
+  reward: function(s,a,ns) {
+    // reward of being in s, taking action a, and ending up in ns
+    return this.Rarr[s];
+  },
+  nextStateDistribution: function(s,a) {
+    // given (s,a) return distribution over s' (in sparse form)
+
+    if(s%100 === pointB) {
+      // agent wins! teleport to start
+      var ns = this.startState();
+    } else {
+      // ordinary space
+	  	for ( var i = 0; i < 6; i++){
+	      if(a === i) {
+
+	      	var ns_ = nodes[s%100].neighbors[i]; // next state is the index of the node at neighbors
+	      	if (ns_ > 24){
+	      		break;
+	      	}
+	      	// transform to new state form
+	      	ns = 0;
+
+  			for (j = 0; j < 6; j++) {
+  				// console.log(nodes[ns_].e[i])
+  				if(nodes[ns_].e[j] != undefined) {
+  					ns += Math.pow(2,j);
+  				}
+  			}
+  			// append the node's state
+  			ns = ns*100 + ns_;
+  			// console.log(ns)
+
+	      	// check if strut exists, if not, add it and switch to move down
+	      	//if (/*adjacency.adj[ns][i] == undefined ||*/ adjacency.adj[s][i] == undefined){
+	      	if ( nodes[s%100].e[i] == undefined){	
+	      		// add strut 
+	      		var ed = tr.addEdge(nodes[s%100], nodes[ns%100]);
+
+	      		// tell nodes.e[] about it
+	      		nodes[s%100].e[i] = ed;
+				nodes[ns%100].e[tr.pairs[i]] = ed;
+
+	      		// unfreeze node
+	      		if (ns%100 != pointA  &&  ns%100 != pointA+1){ // if not start pt
+	      			nodes[ns%100].fixed = false;
+	      		}
+
+	      		// update adjacency matrix
+	      		adjacency.update(edges, nodes, agents, width, height);
+
+	      		
+	    		// switch to walk down
+	      		//agents[0].CurrentBehavior = agents[0].PreviousBehavior;
+	    		//agents[0].PreviousBehavior = agents[0].behaviors[0]; 
+
+	      		break; // exit after the first success (should only be one?)
+	      	}
+	      	// else{
+	      	// 	// console.log(ns, s, nodes[s%100].e[i]);
+	      	// }
+	     
+	      	
+	      }
+		}
+
+
+    }
+    // gridworld is deterministic, so return only a single next state
+    return ns;
+  },
+  sampleNextState: function(s,a) {
+    // gridworld is deterministic, so this is easy
+    var ns = this.nextStateDistribution(s,a);
+    var r = this.Rarr[s]; // observe the raw reward of being in s, taking a, and ending up in ns
+    //console.log(" ");
+    //console.log(r);
+    r -= 0.01 * adjacency.maxDisplacement();
+    r -= 0.001 * edges.length; // every step takes a bit of negative reward times num edges
+    // console.log(r);
+    var out = {'ns':ns, 'r':r};
+    if(s%100 === pointB && ns%100 === (this.startState())%100) {
+	      // episode is over
+	      out.reset_episode = true;
+	      // console.log("over");
+
+	          // clear any existing truss 
+		for (var i = 0, length = agents.length; i < length; i++) {
+			agents[i].bot.remove();
+		}
+		edges = [];
+		nodes = [];
+		agents = [];
+
+		// create and initiate a new truss object 
+		tr = new Truss();
+		tr.initiate();
+
+		adjacency = new Adjacency();
+		adjacency.init(edges, nodes, agents, wdth, hght);
+
+    }
+    return out;
+  },
+  allowedActions: function(s) {
+  	// here we need to check which nodes have (possible) adjacency
+  	//console.log(s);
+    /*var x = this.stox(s);
+    var y = this.stoy(s);*/
+    var as = [];
+
+    if (s%100 > 24){
+    	return as
+    }
+    for (var e = 0; e < 6; e++){
+	    if(nodes[s%100].neighbors[e]) {	as.push(e); }
+	}
+	/*if(x > 0) { as.push(0); }
+    if(y > 0) { as.push(1); }
+    if(y < this.gh-1) { as.push(2); }
+    if(x < this.gw-1) { as.push(3); }*/
+    return as;
+  },
+  randomState: function() { return Math.floor(Math.random()*this.gs); },
+  startState: function() { 
+  	this.state = 0;
+  	for (i = 0; i < 6; i++) {
+  		if(nodes[pointA].e[i] != undefined) {
+  			this.state += Math.pow(2,i);
+  		}
+  	}
+  	// append the node's state
+  	this.state = this.state*100 + pointA
+  	return this.state; 
+  },
+  getNumStates: function() { return this.gs; },
+  getMaxNumActions: function() { return 6; },
+
+  // private functions
+  stox: function(s) { return Math.floor(s/this.gh); },
+  stoy: function(s) { return s % this.gh; },
+  xytos: function(x,y) { return x*this.gh + y; },
+}
+
+
+
+
 
 
 // this function is a workaround provided by user "GoToLoop" on the Processing forum
